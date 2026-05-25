@@ -2,7 +2,7 @@
 
 An MCP server that gives Claude Code agents persistent, verifiable Working Memory on [OriginTrail DKG v10](https://origintrail.io). Every research finding, vulnerability, code analysis, or decision a Claude Code agent produces is deposited into DKG Working Memory with cryptographic provenance — and can be retrieved, updated, and promoted toward Shared Memory across sessions and sub-agents.
 
-Built for the [DKG v10 Round 1 Integrations Bounty](https://origintrail.io) — theme: *LLM-Wiki & Autoresearch Agents*.
+Built for the [DKG v10 Round 1 Integrations Bounty](https://docs.origintrail.io/origintrail-v9-v10/origintrail-dkg-v10-bounty-program) — theme: *LLM-Wiki & Autoresearch Agents*.
 
 ---
 
