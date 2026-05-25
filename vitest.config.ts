@@ -4,12 +4,7 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     exclude: ['tests/live-integration.test.ts'],
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    fileParallelism: false,
     testTimeout: 30000,
     hookTimeout: 30000,
     coverage: {
