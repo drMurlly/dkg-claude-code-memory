@@ -13,3 +13,9 @@ Official_Docs.md
 # DKG auth token
 auth.token
 *.token
+
+# Build artifacts
+*.tgz
+
+# Internal tooling
+.audit-rag/

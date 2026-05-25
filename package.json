@@ -1,0 +1,34 @@
+{
+  "name": "dkg-claude-code-memory",
+  "version": "1.0.0",
+  "description": "MCP server for persistent, verifiable Working Memory on OriginTrail DKG v10",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "dkg-claude-code-memory": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "node -e \"const fs=require('fs'); const f='dist/index.js'; const c=fs.readFileSync(f,'utf8'); if(!c.startsWith('#!')) fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:live": "DKG_INTEGRATION_TEST=1 vitest run tests/integration"
+  },
+  "keywords": [
+    "mcp",
+    "dkg",
+    "origintrail",
+    "working-memory",
+    "claude-code"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

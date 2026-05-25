@@ -1,0 +1,13 @@
+{
+  "_comment": "Add this to your Claude Code MCP settings. Remove _comment before use.",
+  "mcpServers": {
+    "dkg-research-memory": {
+      "command": "npx",
+      "args": ["-y", "dkg-claude-code-memory@latest"],
+      "env": {
+        "DKG_AUTH_TOKEN": "YOUR_DKG_TOKEN_HERE",
+        "DKG_DAEMON_URL": "http://127.0.0.1:9200"
+      }
+    }
+  }
+}
