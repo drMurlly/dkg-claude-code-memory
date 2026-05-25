@@ -6,8 +6,9 @@ coverage/
 .env
 .env.*
 
-# Personal reference file — contains credentials and API keys
+# Personal reference files — contain credentials, API keys, and internal docs
 TOOLS_drMurlly.md
+Official_Docs.md
 
 # DKG auth token
 auth.token
