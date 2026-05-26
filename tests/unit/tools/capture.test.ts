@@ -9,6 +9,15 @@ import type { ToolDeps } from '../../../src/tools/types.js';
 import type { DkgClient } from '../../../src/core/dkg-client.js';
 import type { DedupeStore } from '../../../src/core/dedupe-store.js';
 import { makeMockClient, makeMockDedupeStore, testConfig } from '../helpers.js';
+import { normalizeArtifact } from '../../../src/core/normalizer.js';
+
+vi.mock('../../../src/core/normalizer.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/core/normalizer.js')>();
+  return {
+    ...actual,
+    normalizeArtifact: vi.fn(actual.normalizeArtifact),
+  };
+});
 
 describe('handleCapture', () => {
   let mockClient: Partial<DkgClient>;
@@ -108,6 +117,14 @@ describe('handleCapture', () => {
       const result = await handleCapture({ content }, deps);
       expect(result.success).toBe(true);
       expect(result.message).toContain('captured successfully');
+    });
+
+    it('falls back to artifactRecord.artifactId when receipt has no ual', async () => {
+      (mockClient.createOrWriteAssertion as any).mockResolvedValueOnce({});
+      const content = 'A'.repeat(100);
+      const result = await handleCapture({ content }, deps);
+      expect(result.success).toBe(true);
+      expect(result.ual).toMatch(/^urn:dkg:wm:/);
     });
   });
 
@@ -323,6 +340,26 @@ describe('handleCapture', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Failed to capture artifact');
+    });
+
+    it('handles non-Error thrown values via String(err) branch', async () => {
+      (mockClient.createOrWriteAssertion as any).mockRejectedValue('plain string error');
+
+      const content = 'A'.repeat(100);
+      const result = await handleCapture({ content }, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('plain string error');
+    });
+
+    it('returns failure when normalizeArtifact returns null', async () => {
+      vi.mocked(normalizeArtifact).mockReturnValueOnce(null as any);
+
+      const content = 'A'.repeat(100);
+      const result = await handleCapture({ content }, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to normalize artifact');
     });
   });
 });

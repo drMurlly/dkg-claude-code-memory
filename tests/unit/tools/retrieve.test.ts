@@ -130,6 +130,24 @@ describe('handleRetrieve', () => {
     });
   });
 
+  describe('DKG v10 flat format', () => {
+    it('parses result.bindings with flat string pred/obj values', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            { pred: 'https://ontology.origintrail.io/dkg/wm#status', obj: 'draft' },
+            { pred: 'https://ontology.origintrail.io/dkg/wm#artifactType', obj: 'research_note' },
+          ],
+        },
+      });
+
+      const result = await handleRetrieve({ artifactId: 'urn:dkg:wm:test' }, deps);
+      expect(result.success).toBe(true);
+      expect((result.artifact as any).status).toBe('draft');
+      expect((result.artifact as any).artifactType).toBe('research_note');
+    });
+  });
+
   describe('error handling', () => {
     it('handles querySparql error gracefully', async () => {
       mockClient.querySparql = vi.fn().mockRejectedValue(new Error('SPARQL error'));

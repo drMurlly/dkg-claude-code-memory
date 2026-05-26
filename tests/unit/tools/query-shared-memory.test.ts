@@ -250,6 +250,17 @@ describe('handleQuerySharedMemory', () => {
     });
   });
 
+  describe('empty bindings via ?? [] fallback', () => {
+    it('returns empty results when querySparql returns object with neither result nor results', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({});
+
+      const result = await handleQuerySharedMemory({ query: 'test' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(0);
+      expect(result.message).toBe('No shared memory entries found matching the query.');
+    });
+  });
+
   describe('DKG v10 flat format', () => {
     it('handles result.bindings (flat strings) instead of results.bindings', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({

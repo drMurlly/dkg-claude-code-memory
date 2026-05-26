@@ -254,6 +254,30 @@ describe('session-summary tool', () => {
     });
   });
 
+  describe('DKG v10 flat format', () => {
+    it('parses result.bindings with flat string values and N-Quads quoted literals', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            {
+              id: 'urn:dkg:wm:flat1',
+              name: 'Flat Artifact',
+              type: '"research_note"',
+              status: '"draft"',
+              capturedAt: '"2024-01-01T00:00:00Z"',
+            },
+          ],
+        },
+      });
+
+      const result = await handleSessionSummary({ sessionId: 'flat-session' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
+      expect((result.artifacts as any)[0].type).toBe('research_note');
+      expect((result.artifacts as any)[0].status).toBe('draft');
+    });
+  });
+
   describe('binding format resilience', () => {
     it('handles null/non-string binding values using raw() undefined path', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({

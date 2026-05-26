@@ -85,7 +85,7 @@ clear
 echo
 printf '\e[1;33m  dkg-claude-code-memory v1.0.0\e[0m\n'
 printf '\e[90m  Persistent, verifiable Working Memory for Claude Code on OriginTrail DKG v10\e[0m\n'
-printf '\e[90m  10 MCP tools  *  519 tests  *  96.61%% branch coverage\e[0m\n'
+printf '\e[90m  10 MCP tools  *  546 tests  *  99.80%% branch coverage\e[0m\n'
 echo
 sleep 2
 
@@ -168,9 +168,9 @@ CLAIM_ARGS=$(python3 -c "import json,os; print(json.dumps({'artifactId': os.envi
 run "python3 /tmp/mcp_call.py get_claim_review \"\$CLAIM_ARGS\" | python3 -c \"import json,sys; d=json.load(sys.stdin); cr=d.get('claimReview') or {}; print('  @type:', cr.get('@type','?')); print('  name:', str(cr.get('name','?'))[:55])\""
 ok "schema.org ClaimReview JSON-LD -- ready for OriginTrail Oracle integration"
 
-banner "519 Unit Tests -- all passing"
+banner "546 Unit Tests -- all passing"
 run "cd $DEMO_DIR && npm test 2>&1 | tail -6"
-ok "519 unit tests pass  *  96.61% branch coverage"
+ok "546 unit tests pass  *  99.80% branch coverage"
 
 banner "13 Live Integration Tests -- real DKG node"
 run "cd $DEMO_DIR && DKG_AUTH_TOKEN=$TOKEN npm run test:live 2>&1 | tail -6"
@@ -179,7 +179,7 @@ ok "13 live integration tests pass -- real DKG v10 node, real UALs"
 banner "Done"
 echo
 printf '\e[1;32m  dkg-claude-code-memory v1.0.0\e[0m\n'
-printf '\e[90m  10 MCP tools  *  519 tests  *  96.61%% branches  *  Apache-2.0\e[0m\n'
+printf '\e[90m  10 MCP tools  *  546 tests  *  99.80%% branches  *  Apache-2.0\e[0m\n'
 printf '\e[90m  npm: dkg-claude-code-memory  |  github: drMurlly/dkg-claude-code-memory\e[0m\n'
 echo
 sleep 3

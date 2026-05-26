@@ -344,6 +344,39 @@ describe('handleSearch', () => {
     });
   });
 
+  describe('empty bindings via ?? [] fallback', () => {
+    it('returns 0 results when querySparql returns object with neither result nor results', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({});
+
+      const result = await handleSearch({}, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(0);
+    });
+
+    it('handles binding with no status field (undefined status)', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            {
+              id: { value: 'urn:dkg:wm:nostatus' },
+              name: { value: 'No Status' },
+              text: { value: 'content' },
+              type: { value: 'research_note' },
+              contentHash: { value: 'h1' },
+              capturedAt: { value: '2024-01-01T00:00:00Z' },
+              sessionId: { value: 'sess' },
+              // status is intentionally absent
+            },
+          ],
+        },
+      });
+
+      const result = await handleSearch({}, deps);
+      expect(result.success).toBe(true);
+      expect((result.artifacts as any)[0].status).toBeUndefined();
+    });
+  });
+
   describe('DKG v10 flat format', () => {
     it('handles result.bindings with plain strings and N-Quads literals', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({

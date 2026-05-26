@@ -188,6 +188,12 @@ describe('DkgClient', () => {
       await expect(client.getStatus()).rejects.toBeInstanceOf(DkgUnavailableError);
     });
 
+    it('throws DkgUnavailableError when non-Error string "fetch failed" is thrown', async () => {
+      // Covers the String(err) branch at line 143 when thrown value is not an Error instance
+      vi.mocked(global.fetch).mockRejectedValue('fetch failed');
+      await expect(client.getStatus()).rejects.toBeInstanceOf(DkgUnavailableError);
+    });
+
     it('re-throws unknown errors as-is', async () => {
       const customErr = new TypeError('unexpected');
       vi.mocked(global.fetch).mockRejectedValue(customErr);
@@ -226,6 +232,16 @@ describe('DkgClient', () => {
       vi.mocked(global.fetch).mockResolvedValue(mockStatus(404, 'nope'));
       await expect(client.getStatus()).rejects.toBeInstanceOf(DkgApiError);
       expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls logger.info on retry when logger is defined', async () => {
+      const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+      const clientWithLogger = new DkgClient({ ...BASE_OPTIONS, logger });
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(mockStatus(503))
+        .mockResolvedValueOnce(mockOk({}));
+      await clientWithLogger.getStatus();
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('retrying'));
     });
   });
 
@@ -295,6 +311,14 @@ describe('DkgClient', () => {
     it('throws DkgAuthError on 401', async () => {
       vi.mocked(global.fetch).mockResolvedValueOnce(mockStatus(401));
       await expect(client.createContextGraph('g', 'G')).rejects.toBeInstanceOf(DkgAuthError);
+    });
+
+    it('calls logger.info after successful createContextGraph', async () => {
+      const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+      const clientWithLogger = new DkgClient({ ...BASE_OPTIONS, logger });
+      vi.mocked(global.fetch).mockResolvedValueOnce(mockOk({}));
+      await clientWithLogger.createContextGraph('my-graph', 'My Graph');
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('my-graph'));
     });
   });
 
@@ -381,6 +405,24 @@ describe('DkgClient', () => {
       const body = JSON.parse((opts as RequestInit).body as string);
       expect(body).toMatchObject({ contextGraphId: 'ctx-graph', name: 'assert-name' });
     });
+
+    it('calls logger.info after successful createAssertion', async () => {
+      const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+      const clientWithLogger = new DkgClient({ ...BASE_OPTIONS, logger });
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        mockOk({ assertionUri: 'urn:assertion:logged', ual: 'ual:logged:1' }),
+      );
+      await clientWithLogger.createAssertion('ctx', 'logged-assertion');
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('logged-assertion'));
+    });
+
+    it('uses "none" fallback in logger when receipt.assertionUri is undefined', async () => {
+      const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+      const clientWithLogger = new DkgClient({ ...BASE_OPTIONS, logger });
+      vi.mocked(global.fetch).mockResolvedValueOnce(mockOk({})); // no assertionUri
+      await clientWithLogger.createAssertion('ctx', 'no-uri-assertion');
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('none'));
+    });
   });
 
   // ─────────────────────────────────────────
@@ -417,6 +459,14 @@ describe('DkgClient', () => {
     it('throws DkgAuthError on 401', async () => {
       vi.mocked(global.fetch).mockResolvedValueOnce(mockStatus(401));
       await expect(client.writeAssertion('ctx', 'a', quads)).rejects.toBeInstanceOf(DkgAuthError);
+    });
+
+    it('calls logger.info after successful write', async () => {
+      const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+      const clientWithLogger = new DkgClient({ ...BASE_OPTIONS, logger });
+      vi.mocked(global.fetch).mockResolvedValueOnce(mockOk({ written: 1 }));
+      await clientWithLogger.writeAssertion('ctx', 'logged-assert', quads);
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('logged-assert'));
     });
 
     it('retries on 503 and succeeds', async () => {
@@ -540,6 +590,14 @@ describe('DkgClient', () => {
       vi.mocked(global.fetch).mockResolvedValueOnce(mockStatus(401));
       await expect(client.promoteAssertion('ctx', 'a')).rejects.toBeInstanceOf(DkgAuthError);
     });
+
+    it('calls logger.info after successful promote', async () => {
+      const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+      const clientWithLogger = new DkgClient({ ...BASE_OPTIONS, logger });
+      vi.mocked(global.fetch).mockResolvedValueOnce(mockOk({}));
+      await clientWithLogger.promoteAssertion('ctx', 'promoted-assert');
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('promoted-assert'));
+    });
   });
 
   // ─────────────────────────────────────────
@@ -612,6 +670,96 @@ describe('DkgClient', () => {
       const [, opts] = vi.mocked(global.fetch).mock.calls[0];
       const body = JSON.parse((opts as RequestInit).body as string);
       expect(body.agentAddress).toBe('0xTestAgent');
+    });
+
+    it('omits agentAddress from body when getAgentAddress returns null', async () => {
+      // Create a client with no pre-cached agentAddress; getStatus returns {} (no agentAddress)
+      const freshClient = new DkgClient(BASE_OPTIONS);
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(mockOk({})) // getStatus → no agentAddress
+        .mockResolvedValueOnce(mockOk({ result: { bindings: [] } })); // query
+      await freshClient.querySparql('SELECT * WHERE {}');
+      const [, queryOpts] = vi.mocked(global.fetch).mock.calls[1];
+      const body = JSON.parse((queryOpts as RequestInit).body as string);
+      expect(body.agentAddress).toBeUndefined();
+    });
+  });
+
+  // ─────────────────────────────────────────
+  // getArtifactSensitivity()
+  // Note: uses a pre-cached agentAddress client so querySparql() skips identity call.
+  // ─────────────────────────────────────────
+  describe('getArtifactSensitivity()', () => {
+    let sensitivityClient: DkgClient;
+
+    beforeEach(() => {
+      sensitivityClient = new DkgClient({ ...BASE_OPTIONS, agentAddress: '0xTestAgent' });
+    });
+
+    it('returns sensitivity value from W3C {value:string} format', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        mockOk({ results: { bindings: [{ accessMode: { value: 'confidential' } }] } }),
+      );
+      const result = await sensitivityClient.getArtifactSensitivity('urn:test:artifact');
+      expect(result).toBe('confidential');
+    });
+
+    it('returns sensitivity value from DKG v10 flat string format', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        mockOk({ result: { bindings: [{ accessMode: 'internal' }] } }),
+      );
+      const result = await sensitivityClient.getArtifactSensitivity('urn:test:artifact');
+      expect(result).toBe('internal');
+    });
+
+    it('strips N-Quads surrounding quotes from flat string value', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        mockOk({ result: { bindings: [{ accessMode: '"confidential"' }] } }),
+      );
+      const result = await sensitivityClient.getArtifactSensitivity('urn:test:artifact');
+      expect(result).toBe('confidential');
+    });
+
+    it('returns null when bindings array is empty', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        mockOk({ result: { bindings: [] } }),
+      );
+      const result = await sensitivityClient.getArtifactSensitivity('urn:test:artifact');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when querySparql throws', async () => {
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('network failure'));
+      const result = await sensitivityClient.getArtifactSensitivity('urn:test:artifact');
+      expect(result).toBeNull();
+    });
+
+    it('strips < and > from artifactId before building SPARQL query', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        mockOk({ result: { bindings: [{ accessMode: 'public' }] } }),
+      );
+      // Pass id with extra < > wrapping; they get stripped before SPARQL is built
+      await sensitivityClient.getArtifactSensitivity('<urn:test:artifact>');
+      const [, opts] = vi.mocked(global.fetch).mock.calls[0];
+      const body = JSON.parse((opts as RequestInit).body as string);
+      // safeId = 'urn:test:artifact', query wraps it as <urn:test:artifact>
+      expect(body.sparql).toContain('<urn:test:artifact>');
+      expect(body.sparql).toMatch(/PREFIX schema/);
+    });
+
+    it('returns null when accessMode binding is not a string or {value:string} object', async () => {
+      // raw is {value: 42} — value is number not string → val stays undefined → returns null
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        mockOk({ result: { bindings: [{ accessMode: { value: 42 } }] } }),
+      );
+      const result = await sensitivityClient.getArtifactSensitivity('urn:test:artifact');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when querySparql returns empty object (??[] fallback)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(mockOk({}));
+      const result = await sensitivityClient.getArtifactSensitivity('urn:test:artifact');
+      expect(result).toBeNull();
     });
   });
 

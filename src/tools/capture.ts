@@ -218,6 +218,7 @@ export async function handleCapture(
     if (!validation.valid) {
       const result: ToolResult = {
         success: false,
+        /* c8 ignore next -- validateCaptureParams always sets message */
         message: validation.message || 'Validation failed',
       };
       logCaptureEvent(params, result, Date.now() - startTime);

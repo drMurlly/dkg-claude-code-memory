@@ -96,7 +96,7 @@ When recording a new finding, include the `derivedFrom` field with the URN of th
   "tool": "capture_research_finding",
   "arguments": {
     "content": "PoC demonstrating 50% fund drain via reentrancy in Vault.withdraw(). forge test passes on mainnet fork block 21500000.",
-    "type": "proof_of_concept",
+    "type": "code_analysis",
     "title": "PoC: Vault.withdraw() reentrancy drain",
     "derivedFrom": ["urn:dkg:wm:7f3a2b1c9d0e4f56"],
     "sensitivity": "confidential"

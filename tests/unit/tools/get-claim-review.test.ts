@@ -143,6 +143,56 @@ describe('handleGetClaimReview', () => {
     expect(result.message).toContain('Artifact not found');
   });
 
+  it('strips N-Quads surrounding quotes via stripLit (obj is a quoted literal string)', async () => {
+    const mockBindings = [
+      { pred: { value: 'https://schema.org/name' }, obj: '"Quoted Name"' },
+      { pred: { value: 'https://schema.org/text' }, obj: '"Quoted content body"' },
+      { pred: { value: 'https://ontology.origintrail.io/dkg/wm#contentHash' }, obj: '"hash-abc"' },
+    ];
+    (mockDeps.client.querySparql as ReturnType<typeof vi.fn>).mockResolvedValue({
+      results: { bindings: mockBindings },
+    });
+
+    const result = await handleGetClaimReview({ artifactId: 'urn:test:quoted' }, mockDeps);
+
+    expect(result.success).toBe(true);
+    expect(result.claimReview?.name).toBe('Quoted Name');
+    expect(result.claimReview?.reviewBody).toBe('Quoted content body');
+  });
+
+  it('handles DKG v10 flat format (result.bindings instead of results.bindings)', async () => {
+    const mockBindings = [
+      { pred: 'https://schema.org/name', obj: 'DKG Flat Name' },
+      { pred: 'https://schema.org/text', obj: 'DKG flat content body' },
+      { pred: 'https://ontology.origintrail.io/dkg/wm#contentHash', obj: 'flat-hash' },
+    ];
+    (mockDeps.client.querySparql as ReturnType<typeof vi.fn>).mockResolvedValue({
+      result: { bindings: mockBindings },
+    });
+
+    const result = await handleGetClaimReview({ artifactId: 'urn:test:flat' }, mockDeps);
+
+    expect(result.success).toBe(true);
+    expect(result.claimReview?.name).toBe('DKG Flat Name');
+  });
+
+  it('skips bindings where obj is neither string nor {value:string} (rawVal returns undefined)', async () => {
+    // obj: {value: 42} — value is number not string → rawVal returns undefined → binding excluded
+    // The artifact only has name from a valid binding; other fields fall back to defaults
+    const mockBindings = [
+      { pred: { value: 'https://schema.org/name' }, obj: { value: 'Valid Name' } },
+      { pred: { value: 'https://ontology.origintrail.io/dkg/wm#contentHash' }, obj: { value: 42 } },
+    ];
+    (mockDeps.client.querySparql as ReturnType<typeof vi.fn>).mockResolvedValue({
+      results: { bindings: mockBindings },
+    });
+
+    const result = await handleGetClaimReview({ artifactId: 'urn:test:invalid-obj' }, mockDeps);
+
+    expect(result.success).toBe(true);
+    expect(result.claimReview?.name).toBe('Valid Name');
+  });
+
   it('uses default values when artifact fields are missing (name/text/status ?? fallbacks)', async () => {
     // Only provide contentHash — name, text, status all absent → hit ?? 'Untitled', ?? '', ?? 'draft'
     const mockBindings = [

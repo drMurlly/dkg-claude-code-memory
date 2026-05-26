@@ -83,14 +83,14 @@ The DKG v10 memory model defines three layers. This integration currently implem
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  Tool Layer (src/tools/*.ts)                             │   │
-│  │  - capture_research_finding.ts                           │   │
-│  │  - search_working_memory.ts                              │   │
+│  │  - capture.ts                                            │   │
+│  │  - search.ts                                             │   │
 │  │  - retrieve.ts                                           │   │
-│  │  - update_artifact_status.ts                             │   │
-│  │  - promote_to_shared_memory.ts                           │   │
-│  │  - synthesize_session.ts                                 │   │
-│  │  - get_session_summary.ts                                │   │
-│  │  - query_shared_memory.ts                                │   │
+│  │  - update-status.ts                                      │   │
+│  │  - promote.ts                                            │   │
+│  │  - synthesize.ts                                         │   │
+│  │  - session-summary.ts                                    │   │
+│  │  - query-shared-memory.ts                                │   │
 │  │  - get-claim-review.ts                                   │   │
 │  │  - get-node-status.ts                                    │   │
 │  └──────────────────────────────────────────────────────────┘   │
@@ -745,7 +745,7 @@ Then configure MCP to point to `dist/index.js`.
 | **Trust Gradient** | None | **7-status workflow (draft → ready_to_share)** |
 | **Sensitivity Guard** | None | **`sensitivity` field + promotion guard** |
 | **Redaction** | None | **Automatic secret redaction** |
-| **Test Coverage** | 147 tests | **513 tests, 99.67% stmt, 96.38% branch** |
+| **Test Coverage** | 147 tests | **546 tests, 100% stmt, 99.80% branch** |
 | **Tool Count** | 5 CLI commands | **10 MCP tools** |
 | **Oracle Readiness** | None | **`get_claim_review` tool → ClaimReview JSON-LD** |
 | **Node Health Check** | None | **`get_node_status` tool** |
@@ -768,7 +768,7 @@ Redacted content is replaced with `[REDACTED:<pattern_type>]` before storage.
 
 | Level | Visibility | Promotion Requirement |
 |-------|------------|----------------------|
-| `public` | All team members | Auto-promote to Shared Memory |
+| `public` | All team members | Requires explicit `confirm: true` to promote |
 | `internal` | Team members only | Requires explicit `confirm: true` to promote |
 | `confidential` | Session owner only | Cannot be promoted |
 
