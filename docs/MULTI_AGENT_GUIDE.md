@@ -31,11 +31,13 @@ Create a `claude_desktop_config.json` (or equivalent MCP config) with the follow
   "mcpServers": {
     "dkg-working-memory": {
       "command": "npx",
-      "args": ["-y", "@your-org/dkg-mcp-server"],
+      "args": ["-y", "dkg-claude-code-memory@latest"],
       "env": {
-        "DKG_NODE_RPC": "https://your-shared-dkg-node.rpc",
-        "AGENT_ID": "agent-alpha",
-        "MEMORY_SCOPE": "working"
+        "DKG_DAEMON_URL": "http://127.0.0.1:9200",
+        "DKG_AUTH_TOKEN": "your-bearer-token",
+        "DKG_CONTEXT_GRAPH": "working-memory",
+        "DKG_AUTHOR_ID": "your-name",
+        "DKG_AGENT_ID": "agent-alpha"
       }
     }
   }
@@ -44,26 +46,27 @@ Create a `claude_desktop_config.json` (or equivalent MCP config) with the follow
 
 ### Multi-Agent Team Setup
 
-For a 3-agent research team (e.g., `agent-alpha`, `agent-beta`, `agent-gamma`), each agent gets its own config file with a unique `AGENT_ID` but the same `DKG_NODE_RPC`:
+For a 3-agent research team (e.g., `agent-alpha`, `agent-beta`, `agent-gamma`), each agent gets its own config file with a unique `DKG_AGENT_ID` but the same `DKG_DAEMON_URL`:
 
 ```json
 {
   "mcpServers": {
     "dkg-working-memory": {
       "command": "npx",
-      "args": ["-y", "@your-org/dkg-mcp-server"],
+      "args": ["-y", "dkg-claude-code-memory@latest"],
       "env": {
-        "DKG_NODE_RPC": "https://shared-dkg-node.origintrail.io",
-        "AGENT_ID": "agent-alpha",
-        "MEMORY_SCOPE": "working",
-        "TEAM_ID": "security-research-team-01"
+        "DKG_DAEMON_URL": "http://127.0.0.1:9200",
+        "DKG_AUTH_TOKEN": "your-bearer-token",
+        "DKG_CONTEXT_GRAPH": "working-memory",
+        "DKG_AUTHOR_ID": "your-name",
+        "DKG_AGENT_ID": "agent-alpha"
       }
     }
   }
 }
 ```
 
-**Key Principle:** The `AGENT_ID` identifies who created each memory entry. The `TEAM_ID` groups related agents. The `DKG_NODE_RPC` is shared across all team members.
+**Key Principle:** The `DKG_AGENT_ID` identifies who created each memory entry. The `DKG_DAEMON_URL` is shared across all team members.
 
 ---
 
@@ -233,28 +236,30 @@ Not all work should be shared. The DKG supports sensitivity controls to keep int
 
 ```typescript
 // Create a finding with restricted visibility
-const privateFinding = await client.createMemory({
+const internalFinding = await client.createMemory({
   type: "draft-analysis",
   content: "Initial thoughts on potential issue — needs verification",
-  sensitivity: "private",  // Only visible to agent-alpha
+  sensitivity: "internal",  // Only visible to this agent's working memory
   agentId: "agent-alpha"
 });
 
-// Create a team-visible finding
-const teamFinding = await client.createMemory({
+// Create a finding ready for broader review
+const publicFinding = await client.createMemory({
   type: "vulnerability-discovery",
   content: "Confirmed reentrancy in withdraw()",
-  sensitivity: "team",  // Visible to all agents with same TEAM_ID
+  sensitivity: "public",  // Visible to all agents after promotion
   agentId: "agent-alpha"
 });
 ```
 
+Valid sensitivity values: `'public' | 'internal' | 'confidential'`
+
 ### Best Practices
 
-- Use `private` for drafts, hypotheses, and unverified findings
-- Use `team` for confirmed findings your team should know about
+- Use `internal` for drafts, hypotheses, and unverified findings
+- Use `confidential` for sensitive findings requiring explicit approval before sharing
 - Use `public` (via promotion) only for verified, novel, complete findings
-- When in doubt, start private and promote later
+- When in doubt, start `internal` and promote later
 
 ---
 
@@ -333,18 +338,20 @@ Below is a ready-to-use `CLAUDE.md` configuration snippet for a 3-agent security
 
 ## Shared Configuration
 
-All agents use the same DKG node RPC with unique AGENT_IDs:
+All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
 
 ```json
 {
   "mcpServers": {
     "dkg-working-memory": {
       "command": "npx",
-      "args": ["-y", "@origintrail/dkg-mcp-server"],
+      "args": ["-y", "dkg-claude-code-memory@latest"],
       "env": {
-        "DKG_NODE_RPC": "https://dkg-mainnet.origintrail.io",
-        "MEMORY_SCOPE": "working",
-        "TEAM_ID": "immunefi-vault-audit-2026"
+        "DKG_DAEMON_URL": "http://127.0.0.1:9200",
+        "DKG_AUTH_TOKEN": "your-bearer-token",
+        "DKG_CONTEXT_GRAPH": "working-memory",
+        "DKG_AUTHOR_ID": "your-name",
+        "DKG_AGENT_ID": "agent-alpha"
       }
     }
   }
@@ -360,12 +367,13 @@ All agents use the same DKG node RPC with unique AGENT_IDs:
   "mcpServers": {
     "dkg-working-memory": {
       "command": "npx",
-      "args": ["-y", "@origintrail/dkg-mcp-server"],
+      "args": ["-y", "dkg-claude-code-memory@latest"],
       "env": {
-        "DKG_NODE_RPC": "https://dkg-mainnet.origintrail.io",
-        "AGENT_ID": "agent-alpha",
-        "MEMORY_SCOPE": "working",
-        "TEAM_ID": "immunefi-vault-audit-2026"
+        "DKG_DAEMON_URL": "http://127.0.0.1:9200",
+        "DKG_AUTH_TOKEN": "your-bearer-token",
+        "DKG_CONTEXT_GRAPH": "working-memory",
+        "DKG_AUTHOR_ID": "your-name",
+        "DKG_AGENT_ID": "agent-alpha"
       }
     }
   }
@@ -379,12 +387,13 @@ All agents use the same DKG node RPC with unique AGENT_IDs:
   "mcpServers": {
     "dkg-working-memory": {
       "command": "npx",
-      "args": ["-y", "@origintrail/dkg-mcp-server"],
+      "args": ["-y", "dkg-claude-code-memory@latest"],
       "env": {
-        "DKG_NODE_RPC": "https://dkg-mainnet.origintrail.io",
-        "AGENT_ID": "agent-beta",
-        "MEMORY_SCOPE": "working",
-        "TEAM_ID": "immunefi-vault-audit-2026"
+        "DKG_DAEMON_URL": "http://127.0.0.1:9200",
+        "DKG_AUTH_TOKEN": "your-bearer-token",
+        "DKG_CONTEXT_GRAPH": "working-memory",
+        "DKG_AUTHOR_ID": "your-name",
+        "DKG_AGENT_ID": "agent-beta"
       }
     }
   }
@@ -398,12 +407,13 @@ All agents use the same DKG node RPC with unique AGENT_IDs:
   "mcpServers": {
     "dkg-working-memory": {
       "command": "npx",
-      "args": ["-y", "@origintrail/dkg-mcp-server"],
+      "args": ["-y", "dkg-claude-code-memory@latest"],
       "env": {
-        "DKG_NODE_RPC": "https://dkg-mainnet.origintrail.io",
-        "AGENT_ID": "agent-gamma",
-        "MEMORY_SCOPE": "working",
-        "TEAM_ID": "immunefi-vault-audit-2026"
+        "DKG_DAEMON_URL": "http://127.0.0.1:9200",
+        "DKG_AUTH_TOKEN": "your-bearer-token",
+        "DKG_CONTEXT_GRAPH": "working-memory",
+        "DKG_AUTHOR_ID": "your-name",
+        "DKG_AGENT_ID": "agent-gamma"
       }
     }
   }
@@ -412,7 +422,7 @@ All agents use the same DKG node RPC with unique AGENT_IDs:
 
 ## Workflow
 
-1. **agent-alpha** discovers vulnerability → creates finding with `sensitivity: "team"`
+1. **agent-alpha** discovers vulnerability → creates finding with `sensitivity: "internal"`
 2. **agent-beta** reads finding via `search_working_memory` → writes PoC with `derivedFrom`
 3. **agent-gamma** reads PoC → calculates economic impact with `derivedFrom`
 4. **agent-alpha** (next session) reads all findings → drafts submission
@@ -437,7 +447,7 @@ All agents use the same DKG node RPC with unique AGENT_IDs:
 This guide covers the essential patterns for multi-agent collaboration using DKG Working Memory:
 
 1. **Problem:** Stateless sessions create data silos and lose provenance
-2. **Setup:** Shared DKG node RPC with unique AGENT_IDs per agent
+2. **Setup:** Shared DKG node URL (`DKG_DAEMON_URL`) with unique `DKG_AGENT_ID` per agent
 3. **Provenance:** Use `derivedFrom` to chain findings into auditable research chains
 4. **Discovery:** Search working memory before starting new work
 5. **Promotion:** Move verified findings to shared memory for broader access

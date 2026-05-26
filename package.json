@@ -12,7 +12,8 @@
     "postbuild": "node -e \"const fs=require('fs'); const f='dist/index.js'; const c=fs.readFileSync(f,'utf8'); if(!c.startsWith('#!')) fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);\"",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:live": "DKG_INTEGRATION_TEST=1 vitest run tests/integration"
+    "test:live": "DKG_INTEGRATION_TEST=1 vitest run tests/integration",
+    "prepublishOnly": "npm test && npm run build && npm audit --production"
   },
   "keywords": [
     "mcp",
@@ -21,7 +22,7 @@
     "working-memory",
     "claude-code"
   ],
-  "author": "",
+  "author": "drMurlly",
   "license": "Apache-2.0",
   "engines": {
     "node": ">=22.0.0"

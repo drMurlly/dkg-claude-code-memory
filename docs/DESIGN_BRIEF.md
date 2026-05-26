@@ -85,12 +85,12 @@ The DKG v10 memory model defines three layers. This integration currently implem
 │  │  Tool Layer (src/tools/*.ts)                             │   │
 │  │  - capture_research_finding.ts                           │   │
 │  │  - search_working_memory.ts                              │   │
-│  │  - get_artifact_content.ts                               │   │
+│  │  - retrieve.ts                                           │   │
 │  │  - update_artifact_status.ts                             │   │
 │  │  - promote_to_shared_memory.ts                           │   │
 │  │  - synthesize_session.ts                                 │   │
 │  │  - get_session_summary.ts                                │   │
-│  │  - query_shared_memory.ts (planned)                      │   │
+│  │  - query_shared_memory.ts                                │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                              ↓                                   │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -137,7 +137,7 @@ interface CaptureParams {
   subAgentId?: string;          // Optional: sub-agent identifier
   agentRole?: string;           // Optional: e.g., "security-auditor"
   parentTaskId?: string;        // Optional: parent session UAL
-  sensitivity?: 'internal' | 'team' | 'public';  // Optional: default "internal"
+  sensitivity?: 'public' | 'internal' | 'confidential';  // Optional: default "internal"
 }
 ```
 
@@ -203,7 +203,7 @@ const results = await client.search_working_memory({
 
 ---
 
-### 3.3 `get_artifact_content`
+### 3.3 `retrieve_artifact`
 
 **Purpose:** Retrieve full artifact by UAL or URN.
 
@@ -227,7 +227,7 @@ interface ArtifactRecord {
   subAgentId?: string;
   agentRole?: string;
   parentTaskId?: string;
-  sensitivity: 'internal' | 'team' | 'public';
+  sensitivity: 'public' | 'internal' | 'confidential';
   hash: string;
   timestamp: string;
   provenance?: PROVRecord;      // Full PROV-O graph
@@ -236,7 +236,7 @@ interface ArtifactRecord {
 
 **Example Invocation:**
 ```typescript
-const artifact = await client.get_artifact_content({
+const artifact = await client.retrieve_artifact({
   identifier: "urn:dkg:wm:sha256:def456..."
 });
 // Returns: full ArtifactRecord with provenance graph
@@ -344,6 +344,8 @@ const result = await client.synthesize_session({
 // Returns: { synthesisUal: "ual:local:artifacts:ghi789", artifactCount: 12, ... }
 ```
 
+**Note:** The synthesis output is stored as an artifact with `artifactType: 'knowledge_synthesis'`. This artifact is itself retrievable via `retrieve_artifact` and promotable to Shared Memory via `promote_to_shared_memory`, giving synthesis outputs the same full lifecycle as any other artifact.
+
 ---
 
 ### 3.7 `get_session_summary`
@@ -380,7 +382,7 @@ const summary = await client.get_session_summary({
 
 ---
 
-### 3.8 `query_shared_memory` (Planned — Round 1 Enhancement)
+### 3.8 `query_shared_memory`
 
 **Purpose:** Search across Shared Memory (team-readable artifacts from all agents).
 
@@ -425,7 +427,7 @@ interface ArtifactRecord {
   parentTaskId?: string;        // Parent session UAL
   
   // Security
-  sensitivity: 'internal' | 'team' | 'public';  // Access control
+  sensitivity: 'public' | 'internal' | 'confidential';  // Access control
   
   // Extended provenance
   provenance?: PROVRecord;      // Full PROV-O graph (optional, for complex lineage)
@@ -602,9 +604,9 @@ Every artifact has a `sensitivity` field with three levels:
 
 | Level | Description | Access |
 |-------|-------------|--------|
-| `internal` | Private to agent session | Only the creating agent |
-| `team` | Team-readable | All agents in the team (after promotion) |
 | `public` | Publicly accessible | Any agent querying Shared Memory |
+| `internal` | Private to agent session | Only the creating agent |
+| `confidential` | Restricted access | Requires explicit override to share |
 
 ### Promotion Guard
 
@@ -693,7 +695,7 @@ Then configure MCP to point to `dist/index.js`.
 | **Trust Gradient** | None | **7-status workflow (draft → ready_to_share)** |
 | **Sensitivity Guard** | None | **`sensitivity` field + promotion guard** |
 | **Redaction** | None | **Automatic secret redaction** |
-| **Test Coverage** | 147 tests | **451 tests (99.66% statement coverage)** |
+| **Test Coverage** | 147 tests | **497 tests (99.64% statement coverage, 95.88% branch coverage)** |
 | **Oracle Readiness** | Asserted | **Demonstrated via ClaimReview serializer** |
 
 ### Key Differentiators
@@ -709,12 +711,12 @@ Then configure MCP to point to `dist/index.js`.
 
 ### Round 1 (Current — DKG v10 Working Memory)
 
-- ✅ All 7 tools implemented and tested
+- ✅ All 8 tools implemented and tested
 - ✅ Core modules (normalizer, serializers, provenance-builder, status-classifier, dedupe-store)
-- ✅ 451 passing tests (99.66% statement coverage)
+- ✅ 497 passing tests (99.64% statement coverage, 95.88% branch coverage)
 - ✅ MCP stdio server wired
-- ⏳ `query_shared_memory` tool (planned enhancement)
-- ⏳ Documentation (this DESIGN_BRIEF.md, DEMO_SCRIPT.md, ORACLE_READINESS.md)
+- ✅ `query_shared_memory` — 8th tool, implemented and tested
+- ✅ Documentation (this DESIGN_BRIEF.md, DEMO_SCRIPT.md, ORACLE_READINESS.md)
 
 ### Round 2 (Verified Memory)
 
@@ -740,8 +742,8 @@ Then configure MCP to point to `dist/index.js`.
 I, Selon (drMurlly), attest that:
 
 1. This implementation is original work (Apache-2.0 licensed).
-2. All 7 tools are implemented and tested.
-3. The codebase has 451 passing tests with 99.66% statement coverage.
+2. All 8 tools are implemented and tested.
+3. The codebase has 497 passing tests with 99.64% statement coverage and 95.88% branch coverage.
 4. I commit to maintaining this project for 6 months post-acceptance.
 5. I will respond to bounty program inquiries within 48 hours.
 

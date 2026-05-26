@@ -35,7 +35,26 @@ Each artifact is serialized into RDF quads using the `serializeToQuads()` functi
 
 ## 2. toClaimReview() Output Format and Field Mapping
 
-The `toClaimReview()` serializer (conceptual — not yet implemented in current codebase) converts an `ArtifactRecord` into the schema.org/ClaimReview format expected by the OriginTrail Oracle. Below is the complete field mapping table:
+The `toClaimReview()` serializer converts an `ArtifactRecord` into the schema.org/ClaimReview format expected by the OriginTrail Oracle. It is implemented in `src/core/serializers.ts`, exported from `dist/index.js`, and covered by 10 unit tests.
+
+```typescript
+// toClaimReview() — implemented in src/core/serializers.ts, exported from dist/index.js
+import { toClaimReview } from 'dkg-claude-code-memory';
+
+const claimReview = toClaimReview(artifactRecord);
+// Returns:
+// {
+//   '@context': 'https://schema.org/',
+//   '@type': 'ClaimReview',
+//   name: artifactRecord.title,
+//   reviewBody: artifactRecord.content,
+//   reviewRating: { ratingValue: 4 },  // validated → 4, ready_to_share → 5, etc.
+//   url: artifactRecord.artifactId,    // urn:dkg:wm:<sha256-prefix>
+//   datePublished: artifactRecord.provenance.capturedAt
+// }
+```
+
+Below is the complete field mapping table:
 
 | ArtifactRecord Field | ClaimReview Schema Field | Type | Description |
 |---------------------|-------------------------|------|-------------|
@@ -109,7 +128,7 @@ The `toClaimReview()` serializer (conceptual — not yet implemented in current 
 
 **Step 1: Generate ClaimReview from Artifact**
 
-Call the `toClaimReview()` serializer (when implemented) or manually construct the JSON-LD:
+Call the `toClaimReview()` serializer or manually construct the JSON-LD:
 
 ```typescript
 import { toClaimReview } from './src/core/serializers.js';
@@ -261,7 +280,7 @@ Response:
 
 | Limitation | Impact | Mitigation |
 |-----------|--------|------------|
-| `toClaimReview()` not yet implemented | Manual JSON-LD construction required | Use the field mapping table in Section 2 |
+| `toClaimReview()` ✅ Implemented in src/core/serializers.ts | Automatic JSON-LD generation available | Import from `dkg-claude-code-memory` |
 | Oracle API access requires API token | Not all users can submit | Coordinate with OriginTrail for API access |
 | DKG v10 required | DKG v9 artifacts not compatible | Ensure DKG v10 daemon is running |
 | Content hash verification only | Does not verify semantic correctness | Human review still required |
@@ -283,7 +302,6 @@ Response:
 
 ### Future Enhancements
 
-- Automated `toClaimReview()` implementation in `src/core/serializers.ts`
 - Oracle submission MCP tool (`submit_to_oracle`)
 - Automatic status promotion based on tool verification results
 - Batch ClaimReview submission for multiple artifacts

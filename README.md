@@ -26,7 +26,7 @@ Claude Code sessions are stateless by default. Work disappears when the session 
 |---|-|
 | `capture_research_finding` | Write an artifact to DKG Working Memory with SHA-256 content hash, timestamp, and agent provenance |
 | `search_working_memory` | SPARQL search by keyword, type, status, or session ID |
-| `get_artifact_content` | Retrieve full artifact content by UAL or URN reference |
+| `retrieve_artifact` | Retrieve full artifact content by UAL or URN reference |
 | `update_artifact_status` | Advance an artifact through the trust gradient (draft → needs_sources → review_needed → validated → ready_to_share) |
 | `promote_to_shared_memory` | Share validated artifacts with team peers (requires explicit user confirmation) |
 | `synthesize_session` | Aggregate all artifacts from a session into a structured knowledge_synthesis artifact |
@@ -43,7 +43,7 @@ Artifacts can be classified with a `sensitivity` level to control sharing behavi
 capture_research_finding({
   content: "Private key handling vulnerability in withdraw()...",
   type: "vulnerability_finding",
-  sensitivity: "high",  // Options: 'public', 'internal', 'confidential', 'high'
+  sensitivity: "confidential",  // Options: 'public' | 'internal' | 'confidential'
   status: "draft"
 });
 ```
@@ -52,7 +52,6 @@ capture_research_finding({
 - `public` — Safe for team sharing, no restrictions
 - `internal` — Team members only, requires promotion
 - `confidential` — Restricted to specific roles, manual review required
-- `high` — Critical findings requiring explicit approval before any sharing
 
 The sensitivity field works with the `promote_to_shared_memory` guard to prevent accidental exposure of sensitive findings.
 

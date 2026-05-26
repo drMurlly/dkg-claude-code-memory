@@ -59,7 +59,23 @@ const TOOL_DEFINITIONS = [
         type: { type: 'string', enum: ARTIFACT_TYPES, description: 'Artifact type classification' },
         title: { type: 'string', description: 'Short title (auto-generated if omitted)' },
         status: { type: 'string', enum: ARTIFACT_STATUSES, description: 'Override status classification' },
+        sensitivity: {
+          type: 'string',
+          enum: ['public', 'internal', 'confidential'],
+          description: 'Access sensitivity level. confidential artifacts cannot be promoted to Shared Memory.',
+        },
+        derivedFrom: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URNs of artifacts this was derived from — creates prov:wasDerivedFrom provenance chains for multi-agent lineage.',
+        },
+        source: {
+          type: 'string',
+          enum: ['chat', 'tool', 'file', 'manual', 'api'],
+          description: 'Provenance source of this artifact (default: tool)',
+        },
         sessionId: { type: 'string', description: `Current session ID. Default: ${SESSION_ID}` },
+        conversationId: { type: 'string', description: 'Conversation ID for multi-session tracking' },
         parentTaskId: { type: 'string', description: 'Parent session/task ID (for sub-agent attribution)' },
         subAgentId: { type: 'string', description: 'Sub-agent identifier (for sub-agent attribution)' },
         agentRole: { type: 'string', description: 'Role of the agent producing this artifact' },
@@ -70,16 +86,20 @@ const TOOL_DEFINITIONS = [
   {
     name: 'search_working_memory',
     description:
-      'Search past artifacts in Working Memory by keyword, type, status, or session. ' +
+      'Search past artifacts in Working Memory by keyword, type, status, session, or provenance chain. ' +
       'Call this at the START of any research task to avoid duplicating prior work.',
     inputSchema: {
       type: 'object',
       properties: {
-        keyword: { type: 'string', description: 'Keyword to search for in artifact content/title' },
+        keyword: { type: 'string', description: 'Keyword to search in artifact title AND content body' },
         type: { type: 'string', enum: ARTIFACT_TYPES, description: 'Filter by artifact type' },
         status: { type: 'string', enum: ARTIFACT_STATUSES, description: 'Filter by status' },
         sessionId: { type: 'string', description: 'Filter by session ID' },
-        limit: { type: 'number', description: 'Maximum results to return (default 20)' },
+        derivedFromId: {
+          type: 'string',
+          description: 'Filter: return only artifacts derived from this URN (traces provenance chain forward)',
+        },
+        limit: { type: 'number', description: 'Maximum results to return (default 20, max 100)' },
       },
     },
   },
@@ -131,9 +151,9 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string', description: 'Session ID to synthesize' },
+        sessionId: { type: 'string', description: `Session ID to synthesize (defaults to current session: ${SESSION_ID})` },
+        title: { type: 'string', description: 'Custom title for the synthesis artifact (auto-generated if omitted)' },
       },
-      required: ['sessionId'],
     },
   },
   {

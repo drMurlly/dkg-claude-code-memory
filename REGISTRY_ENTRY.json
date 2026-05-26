@@ -1,51 +1,87 @@
 {
   "name": "dkg-claude-code-memory",
-  "description": "MCP server providing Claude Code agents with persistent, verifiable Working Memory on OriginTrail DKG v10. Captures research findings, vulnerability analyses, and code reviews with cryptographic provenance for cross-session retrieval and team sharing.",
+  "description": "MCP server providing Claude Code agents with persistent, verifiable Working Memory on OriginTrail DKG v10. Captures research findings, vulnerability analyses, and code reviews with SHA-256 content-addressable IDs, PROV-O provenance chains, and multi-agent attribution — enabling cross-session retrieval, deduplication, and team knowledge sharing.",
   "version": "1.0.0",
-  "author": "",
+  "author": "drMurlly",
   "license": "Apache-2.0",
+  "repository": "https://github.com/drMurlly/dkg-claude-code-memory",
   "install": {
     "kind": "mcp",
     "command": "npx",
     "args": ["-y", "dkg-claude-code-memory@latest"],
     "env": {
-      "DKG_AUTH_TOKEN": "required",
-      "DKG_DAEMON_URL": "http://127.0.0.1:9200"
+      "DKG_AUTH_TOKEN": {
+        "description": "OriginTrail DKG authentication token",
+        "required": true
+      },
+      "DKG_DAEMON_URL": {
+        "description": "DKG node RPC endpoint",
+        "default": "http://127.0.0.1:9200",
+        "required": false
+      },
+      "DKG_CONTEXT_GRAPH": {
+        "description": "Named graph for Working Memory isolation (defaults to agent-specific URN)",
+        "required": false
+      },
+      "DKG_DEDUPE_ENABLED": {
+        "description": "Enable SHA-256 content deduplication (default: true)",
+        "required": false
+      }
     }
+  },
+  "networkEgress": [
+    {
+      "host": "DKG_DAEMON_URL",
+      "description": "JSON-RPC calls to the OriginTrail DKG node for reading and writing knowledge assets",
+      "protocol": "https",
+      "required": true
+    }
+  ],
+  "writeAuthority": {
+    "description": "Writes knowledge assets to the OriginTrail DKG v10 blockchain under the authenticated user's DKG wallet. All writes are scoped to the configured DKG_CONTEXT_GRAPH named graph.",
+    "scope": "user-controlled DKG context graph",
+    "reversible": false
   },
   "tools": [
     {
       "name": "capture_research_finding",
-      "description": "Write an artifact to DKG Working Memory with SHA-256 content hash, timestamp, and agent provenance"
+      "description": "Write a research artifact (finding, decision, vulnerability, synthesis) to DKG Working Memory with SHA-256 content hash, PROV-O derivedFrom chains, sensitivity classification, and multi-agent attribution metadata"
     },
     {
       "name": "search_working_memory",
-      "description": "SPARQL search by keyword, type, status, or session ID"
+      "description": "Search past artifacts by keyword, type, status, session ID, or provenance chain (derivedFromId). Call at the start of any research task to avoid duplicating prior work."
     },
     {
-      "name": "get_artifact_content",
-      "description": "Retrieve full artifact content by UAL or URN reference"
+      "name": "retrieve_artifact",
+      "description": "Retrieve the full content and metadata of a single artifact by its artifactId or UAL reference"
     },
     {
       "name": "update_artifact_status",
-      "description": "Advance an artifact through the trust gradient (draft → needs_sources → review_needed → validated → ready_to_share)"
+      "description": "Advance an artifact through the trust gradient: draft → needs_sources → review_needed → validated → ready_to_share (or deprecate/discard)"
     },
     {
       "name": "promote_to_shared_memory",
-      "description": "Share validated artifacts with team peers (requires explicit user confirmation)"
+      "description": "Promote a validated artifact from private Working Memory to team-shared Shared Memory. Requires explicit user confirmation (confirm: true). Blocks confidential artifacts."
     },
     {
       "name": "synthesize_session",
-      "description": "Aggregate all artifacts from a session into a structured knowledge_synthesis artifact"
+      "description": "Aggregate all artifacts from a session into a structured knowledge_synthesis artifact with type counts, status breakdown, and consolidated findings"
     },
     {
       "name": "get_session_summary",
-      "description": "List all artifacts from a session with type counts and status breakdown"
+      "description": "List all artifacts captured in the current or a named session with type counts and status breakdown — useful for checking session state before starting new work"
     },
     {
       "name": "query_shared_memory",
-      "description": "Query team-shared artifacts across peer sessions for collaborative research"
+      "description": "Execute custom SPARQL queries against Shared Memory (schema:DigitalDocument artifacts) for complex provenance analysis and advanced graph queries"
     }
   ],
-  "tags": ["dkg", "memory", "provenance", "mcp", "working-memory"]
+  "tags": ["dkg", "memory", "provenance", "mcp", "working-memory", "multi-agent", "knowledge-graph", "origintrail"],
+  "capabilities": {
+    "deduplication": "SHA-256 content-addressable IDs prevent duplicate captures across sessions",
+    "provenance": "PROV-O prov:wasDerivedFrom chains link artifacts across multi-agent hierarchies",
+    "sensitivity": "Three-tier access control (public/internal/confidential) with promotion guard",
+    "multiAgent": "parentTaskId/subAgentId/agentRole attribution for sub-agent hierarchies",
+    "claimReview": "schema.org ClaimReview serialization ready for OriginTrail Oracle integration"
+  }
 }
