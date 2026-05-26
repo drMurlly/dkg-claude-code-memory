@@ -1,6 +1,7 @@
 # dkg-claude-code-memory
 
 [![CI](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/dkg-claude-code-memory)](https://www.npmjs.com/package/dkg-claude-code-memory)
 
 An MCP server that gives Claude Code agents persistent, verifiable Working Memory on [OriginTrail DKG v10](https://origintrail.io). Every research finding, vulnerability analysis, code review, or decision a Claude Code agent produces is deposited into DKG Working Memory with cryptographic provenance — and can be retrieved, updated, and promoted toward Shared Memory across sessions and sub-agents.
 

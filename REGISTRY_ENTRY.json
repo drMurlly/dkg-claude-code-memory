@@ -95,8 +95,8 @@
       "description": "Check DKG node reachability and measure connection latency \u2014 useful for diagnosing connection issues before running tool operations"
     }
   ],
-  "testCount": 513,
-  "coverage": "99.67% statements, 96.38% branches",
+  "testCount": 519,
+  "coverage": "99.67% statements, 96.61% branches",
   "tags": [
     "dkg",
     "memory",
