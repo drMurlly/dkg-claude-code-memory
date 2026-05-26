@@ -630,7 +630,7 @@ const finding = await client.capture_research_finding({
   content: "HIGH: RocketMegapoolDelegate.distribute() DoS via challengeExit alternation. See static analysis grep result for contract locations.",
   type: "vulnerability_finding",
   status: "needs_sources",
-  derivedFrom: [grepResult.urn],  // Links to Agent A's work
+  derivedFrom: [grepResult.artifactId],  // Links to Agent A's work
   subAgentId: "security-researcher",
   agentRole: "vulnerability-analyst"
 });
@@ -640,7 +640,7 @@ const pocResult = await client.capture_research_finding({
   content: "PoC complete: forge test --fork-url mainnet passes. Attack requires 2 colluding oDAO members. Confirmed HIGH severity.",
   type: "code_analysis",
   status: "validated",
-  derivedFrom: [finding.urn],  // Links to Agent B's finding
+  derivedFrom: [finding.artifactId],  // Links to Agent B's finding
   subAgentId: "poc-developer",
   agentRole: "exploit-developer"
 });
