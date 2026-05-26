@@ -93,18 +93,18 @@ describe('handlePromote', () => {
           memoryLayer: 'working-memory',
         },
       };
-      const mockClientWithGetArtifact = makeMockClient();
-      (mockClientWithGetArtifact.getArtifact as any) = vi.fn().mockResolvedValue(confidentialArtifact);
-      const depsWithGetArtifact: ToolDeps = {
-        client: mockClientWithGetArtifact as DkgClient,
+      const mockClientWithSensitivity = makeMockClient();
+      (mockClientWithSensitivity.getArtifactSensitivity as any) = vi.fn().mockResolvedValue('confidential');
+      const depsWithSensitivity: ToolDeps = {
+        client: mockClientWithSensitivity as DkgClient,
         dedupeStore: mockDedupeStore as DedupeStore,
         config: testConfig,
       };
 
-      const result = await handlePromote({ artifactId: 'urn:dkg:wm:confidential', confirm: true }, depsWithGetArtifact);
+      const result = await handlePromote({ artifactId: 'urn:dkg:wm:confidential', confirm: true }, depsWithSensitivity);
       expect(result.success).toBe(false);
       expect(result.message).toBe('Confidential artifacts cannot be promoted to Shared Memory');
-      expect(mockClientWithGetArtifact.promoteAssertion).not.toHaveBeenCalled();
+      expect(mockClientWithSensitivity.promoteAssertion).not.toHaveBeenCalled();
     });
 
     it('allows public artifacts to be promoted', async () => {

@@ -5,7 +5,6 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { McpConfig } from '../types/mcp.js';
 
 interface DedupeEntry {
   ual?: string;
@@ -22,7 +21,7 @@ export class DedupeStore {
   private assertionCreated = false;
   private readonly filePath: string;
 
-  constructor(config: McpConfig) {
+  constructor(config: { stateDir: string }) {
     this.filePath = join(config.stateDir, 'dedupe.json');
   }
 

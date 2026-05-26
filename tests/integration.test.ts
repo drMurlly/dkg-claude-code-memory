@@ -413,6 +413,7 @@ describe('integration tests (mocked fetch)', () => {
       const { handlePromote } = await import('../src/tools/promote.js');
       const mockClient = {
         promoteAssertion: vi.fn().mockResolvedValue(undefined),
+        getArtifactSensitivity: vi.fn().mockResolvedValue(null),
       };
       const result = await handlePromote(
         { artifactId: 'urn:dkg:wm:abc', confirm: true },

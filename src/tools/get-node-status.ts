@@ -1,43 +1,33 @@
-import { Tool } from "../types/tool.js";
-import { DkgClient } from "../core/dkg-client.js";
+import type { ToolDeps, ToolResult } from './types.js';
 
 /**
- * get_node_status — check DKG node health via DkgClient.getStatus()
- *
- * Uses the DKG client's getStatus() method which verifies the DKG API
- * actually responds (not just port-open check).
+ * get_node_status — verify DKG node health via DkgClient.getStatus().
+ * Uses the real API endpoint (not just port-open) so 'online' means DKG answered.
  */
-export const getNodeStatusTool: Tool = {
-  name: "get_node_status",
-  description: "Check the health and status of the connected DKG node",
-  inputSchema: {
-    type: "object" as const,
-    properties: {},
-    required: [],
-  },
-
-  async execute(deps: { client: DkgClient }) {
-    try {
-      const status = await deps.client.getStatus();
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(status, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Node status check failed: ${message}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  },
-};
+export async function handleGetNodeStatus(
+  _params: Record<string, unknown>,
+  deps: ToolDeps,
+): Promise<ToolResult> {
+  const nodeUrl = deps.config.daemonUrl;
+  const start = Date.now();
+  try {
+    await deps.client.getStatus();
+    return {
+      success: true,
+      message: 'Node is online',
+      status: 'online',
+      nodeUrl,
+      latencyMs: Date.now() - start,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: true,
+      message: 'Node is offline or unreachable',
+      status: 'offline',
+      nodeUrl,
+      latencyMs: Date.now() - start,
+      error: msg,
+    };
+  }
+}
