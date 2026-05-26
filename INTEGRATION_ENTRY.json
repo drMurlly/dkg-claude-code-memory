@@ -1,0 +1,43 @@
+{
+  "$schema": "../schema/integration.schema.json",
+  "schemaVersion": "0.1.0",
+  "slug": "claude-code-memory",
+  "name": "Claude Code Research Memory for DKG v10",
+  "description": "MCP server that gives Claude Code agents persistent, verifiable Working Memory on DKG v10. Every research finding, vulnerability analysis, code review, or architectural decision is captured with SHA-256 content-addressable IDs, PROV-O provenance chains, and sub-agent attribution — enabling cross-session retrieval, deduplication, and team knowledge sharing via Shared Memory.",
+  "category": ["mcp-server", "working-memory", "claude-code", "autoresearch", "provenance"],
+  "maintainer": {
+    "github": "@drMurlly",
+    "name": "drMurlly"
+  },
+  "repo": "https://github.com/drMurlly/dkg-claude-code-memory",
+  "commit": "a6f1e0ad67a4f70158846a70df185e9dc9be19a8",
+  "license": "Apache-2.0",
+  "requiresDkgNodeVersion": ">=10.0.0-rc.1",
+  "memoryLayers": ["WM", "SWM"],
+  "v10PrimitivesUsed": ["ContextGraph", "Assertion", "UAL", "Integration", "Curator"],
+  "publicInterfacesUsed": ["http-api", "mcp"],
+  "targetAgents": ["Claude Code"],
+  "install": {
+    "kind": "mcp",
+    "command": "npx",
+    "args": ["-y", "dkg-claude-code-memory@latest"],
+    "envRequired": ["DKG_AUTH_TOKEN"],
+    "supportedClients": ["claude-code"]
+  },
+  "security": {
+    "networkEgress": [],
+    "writeAuthority": [
+      "POST /api/context-graph/create",
+      "POST /api/assertion/create",
+      "POST /api/assertion/{name}/write",
+      "POST /api/assertion/{name}/promote [Curator-authority: SHARE — requires explicit user confirmation via confirm=true parameter; never called automatically]"
+    ],
+    "credentialsHandled": [],
+    "notes": "Only communicates with the local DKG node (DKG_DAEMON_URL, default 127.0.0.1:9200); no external network calls. Bearer token read from DKG_AUTH_TOKEN env var or ~/.dkg/auth.token. Curator-authority promote operation requires explicit confirm=true from the user; the server never promotes autonomously. A redaction layer strips API keys, private keys, bearer tokens, PEM blocks, and .env-style secrets from artifact content before any DKG write. No postinstall, preinstall, or install scripts. No eval on remote input, no dynamic code loading. Published with build provenance via GitHub Actions OIDC (npm publish --provenance)."
+  },
+  "trustTier": "community",
+  "designBrief": "https://github.com/drMurlly/dkg-claude-code-memory/blob/main/docs/DESIGN_BRIEF.md",
+  "demo": "https://asciinema.org/a/2Fr7yXvOQvT6h2Ft",
+  "promotionPath": "Artifacts enter Working Memory as 'draft'. Claude Code upgrades status through draft → needs_sources → review_needed → validated → ready_to_share via update_artifact_status. On explicit user confirmation, promote_to_shared_memory calls POST /api/assertion/{name}/promote to gossip the artifact to team peers. Every artifact carries a stable UAL and ClaimReview-shaped JSON-LD (get_claim_review tool) — ready for OriginTrail Oracle consumption in Round 2 without a schema rewrite. The same SPARQL queries (wm:WorkingMemoryArtifact, wm:status, wm:artifactType predicates) return oracle-consumable artifacts across all three layers unchanged.",
+  "fitNotes": "Directly implements the 'ChatGPT / Claude plugin or MCP server that writes to Working Memory' shape from Section 4 — the first suggestion listed. Claude Code sub-agents are an explicit priority target (Section 5). Differentiates by tracking sub-agent provenance chains (parentTaskId/subAgentId/agentRole RDF quads) across orchestrated agent hierarchies — a capability not present in any other submitted integration. Concrete first user is the maintainer (drMurlly) running multi-agent bug-bounty research sessions on Immunefi/Code4rena/Sherlock, where research notes, vulnerability hypotheses, and audit findings vanish at session end today and accumulate as queryable DKG memory once this MCP server is loaded."
+}
