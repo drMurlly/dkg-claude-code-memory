@@ -10,7 +10,7 @@
     "name": "drMurlly"
   },
   "repo": "https://github.com/drMurlly/dkg-claude-code-memory",
-  "commit": "a6f1e0ad67a4f70158846a70df185e9dc9be19a8",
+  "commit": "b79aa43e53982b945188b8e1ba6ee407fc8de860",
   "license": "Apache-2.0",
   "requiresDkgNodeVersion": ">=10.0.0-rc.1",
   "memoryLayers": ["WM", "SWM"],
