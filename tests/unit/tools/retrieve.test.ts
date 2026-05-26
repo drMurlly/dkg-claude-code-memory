@@ -205,5 +205,21 @@ describe('handleRetrieve', () => {
       expect(result.success).toBe(true);
       expect((result.artifact as any).status).toBe('draft');
     });
+
+    it('uses full predicate as key when no # or / separator is present', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            { pred: { value: 'customKey' }, obj: { value: 'customVal' } }, // no # or /
+            { pred: { value: 'https://ontology.origintrail.io/dkg/wm#status' }, obj: { value: 'draft' } },
+          ],
+        },
+      });
+
+      const result = await handleRetrieve({ artifactId: 'urn:dkg:wm:test' }, deps);
+      expect(result.success).toBe(true);
+      expect((result.artifact as any).customKey).toBe('customVal'); // bare predicate used as key
+      expect((result.artifact as any).status).toBe('draft');
+    });
   });
 });

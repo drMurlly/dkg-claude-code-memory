@@ -246,11 +246,34 @@ describe('session-summary tool', () => {
       });
 
       await handleSessionSummary({ sessionId: 'session-123' }, deps);
-      
+
       const call = (mockClient.querySparql as any).mock.calls[0];
       const sparql = call[0];
-      
+
       expect(sparql).toContain('ORDER BY DESC(?capturedAt)');
+    });
+  });
+
+  describe('binding format resilience', () => {
+    it('handles null/non-string binding values using raw() undefined path', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            {
+              id: { value: 'urn:dkg:wm:sparse' },
+              name: null,       // triggers raw() → undefined path
+              type: 42,         // non-string, non-object → undefined
+              status: {},       // object without .value → undefined
+              capturedAt: { value: '2024-01-15T10:00:00Z' },
+            },
+          ],
+        },
+      });
+
+      const result = await handleSessionSummary({ sessionId: 'sess' }, deps);
+      expect(result.success).toBe(true);
+      // null/invalid fields gracefully degrade (undefined → omitted or undefined in artifact)
+      expect((result as any).count).toBe(1);
     });
   });
 });

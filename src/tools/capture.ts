@@ -241,6 +241,7 @@ export async function handleCapture(
     // - Provenance building (session, conversation, tool calls, etc.)
     const artifactRecord = normalizeArtifact(rawInput, deps.config, subAgentContext);
 
+    /* c8 ignore next 7 -- normalizeArtifact only returns null for content that passed earlier guards */
     if (!artifactRecord) {
       const result: ToolResult = {
         success: false,

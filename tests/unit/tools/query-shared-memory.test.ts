@@ -250,6 +250,46 @@ describe('handleQuerySharedMemory', () => {
     });
   });
 
+  describe('DKG v10 flat format', () => {
+    it('handles result.bindings (flat strings) instead of results.bindings', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            {
+              ual: 'urn:dkg:ual:flat1',
+              title: 'Flat Title',
+              snippet: 'Plain text snippet',
+              type: 'research_note',
+              status: '"validated"', // N-Quads quoted literal
+            },
+          ],
+        },
+      });
+
+      const result = await handleQuerySharedMemory({ query: 'test' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
+      expect((result.entries as any)[0].ual).toBe('urn:dkg:ual:flat1');
+      expect((result.entries as any)[0].title).toBe('Flat Title');
+      expect((result.entries as any)[0].status).toBe('validated'); // quotes stripped
+    });
+
+    it('uses fallback values for missing/null binding fields', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [{ ual: { value: 'urn:dkg:ual:sparse' } }],
+        },
+      });
+
+      const result = await handleQuerySharedMemory({ query: 'test' }, deps);
+      expect(result.success).toBe(true);
+      expect((result.entries as any)[0].title).toBe('(untitled)');
+      expect((result.entries as any)[0].snippet).toBe('');
+      expect((result.entries as any)[0].type).toBe('unknown');
+      expect((result.entries as any)[0].status).toBe('unknown');
+    });
+  });
+
   describe('error handling', () => {
     it('returns error when querySparql throws', async () => {
       mockClient.querySparql = vi.fn().mockRejectedValue(new Error('DKG connection refused'));
@@ -258,6 +298,15 @@ describe('handleQuerySharedMemory', () => {
       expect(result.success).toBe(false);
       expect(result.message).toContain('Shared memory query failed');
       expect(result.message).toContain('DKG connection refused');
+    });
+
+    it('returns error when querySparql throws a non-Error value', async () => {
+      mockClient.querySparql = vi.fn().mockRejectedValue('raw string error');
+
+      const result = await handleQuerySharedMemory({ query: 'test' }, deps);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Shared memory query failed');
+      expect(result.message).toContain('raw string error');
     });
 
     it('passes contextGraph and assertionName to querySparql', async () => {

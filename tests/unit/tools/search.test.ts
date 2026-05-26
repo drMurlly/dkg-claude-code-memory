@@ -344,6 +344,33 @@ describe('handleSearch', () => {
     });
   });
 
+  describe('DKG v10 flat format', () => {
+    it('handles result.bindings with plain strings and N-Quads literals', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            {
+              id: 'urn:dkg:wm:flat1',
+              name: 'Flat Artifact',
+              text: '"N-Quads quoted text"',
+              type: '"research_note"',
+              status: '"draft"',
+              contentHash: 'abc123',
+              capturedAt: '"2024-01-01T00:00:00Z"',
+              sessionId: '"sess-flat"',
+            },
+          ],
+        },
+      });
+
+      const result = await handleSearch({}, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
+      expect((result.artifacts as any)[0].status).toBe('draft'); // N-Quads quotes stripped
+      expect((result.artifacts as any)[0].type).toBe('research_note');
+    });
+  });
+
   describe('error handling', () => {
     it('handles querySparql error gracefully', async () => {
       mockClient.querySparql = vi.fn().mockRejectedValue(new Error('SPARQL query failed'));

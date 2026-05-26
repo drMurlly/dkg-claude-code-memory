@@ -56,8 +56,9 @@ export async function handleRetrieve(
       const pred = binding.pred?.value;
       const obj = binding.obj?.value;
       if (pred && obj) {
-        // Extract local predicate name
-        const localPred = pred.split('#').pop() ?? pred.split('/').pop() ?? pred;
+        // Extract local predicate name (hash-fragment first, then last path segment)
+        const sep = pred.includes('#') ? '#' : pred.includes('/') ? '/' : null;
+        const localPred = sep ? pred.split(sep).at(-1)! : pred;
         artifact[localPred] = obj;
       }
     }
