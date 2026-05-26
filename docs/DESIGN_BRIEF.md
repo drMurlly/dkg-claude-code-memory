@@ -314,25 +314,29 @@ const result = await client.promote_to_shared_memory({
 
 ### 3.6 `synthesize_session`
 
-**Purpose:** Generate a session summary artifact that aggregates all findings from a session.
+**Purpose:** Aggregate all artifacts from a session into a consolidated `knowledge_synthesis` artifact.
 
 **Parameters:**
 ```typescript
 interface SynthesizeParams {
-  sessionId: string;            // Session ID to synthesize
-  includeDerivedFrom?: boolean; // Optional: include provenance links
-  outputFormat?: 'markdown' | 'json';  // Optional: default "markdown"
+  sessionId?: string;  // Session ID to synthesize (defaults to current session)
+  title?: string;      // Optional title for the synthesis artifact
 }
 ```
 
 **Returns:**
 ```typescript
 interface SynthesizeResult {
-  summaryUal: string;           // UAL of generated summary artifact
-  artifactCount: number;        // Number of artifacts summarized
-  summaryContent: string;       // Generated summary text
+  success: boolean;
+  artifactId: string;  // URN of the newly created knowledge_synthesis artifact
+  ual: string;         // DKG UAL for the synthesis artifact
+  artifactCount: number;
+  typeBreakdown: Record<ArtifactType, number>;
+  content: string;     // Markdown-formatted synthesis
 }
 ```
+
+The output is stored as an artifact with `artifactType: 'knowledge_synthesis'`. This artifact is itself retrievable via `retrieve_artifact`, promotable to Shared Memory via `promote_to_shared_memory`, and convertible to a ClaimReview document via `get_claim_review` — giving session syntheses the same full lifecycle as any individual finding.
 
 ---
 
@@ -382,6 +386,58 @@ interface SharedMemoryResult {
   artifacts: ArtifactRecord[];
   count: number;
   sharedContextGraph: string;
+}
+```
+
+### 3.9 `get_claim_review`
+
+**Purpose:** Retrieve a stored artifact and convert it to a `schema:ClaimReview` JSON-LD document for OriginTrail Oracle consumption.
+
+**Parameters:**
+```typescript
+interface GetClaimReviewParams {
+  artifactId: string;  // The artifact ID (URN) to convert
+}
+```
+
+**Returns:**
+```typescript
+interface GetClaimReviewResult {
+  success: boolean;
+  message: string;
+  claimReview: {
+    '@context': 'https://schema.org/';
+    '@type': 'ClaimReview';
+    name: string;
+    reviewBody: string;
+    reviewRating: { '@type': 'Rating'; ratingValue: number; bestRating: number };
+    url: string;          // Artifact URN
+    datePublished: string;
+    author: { '@type': 'Person'; name: string };
+  };
+}
+```
+
+This tool directly enables the Oracle integration described in Section 6. It is the only MCP tool in any public DKG v10 integration that exposes ClaimReview serialization as a callable tool — other integrations require direct library access.
+
+---
+
+### 3.10 `get_node_status`
+
+**Purpose:** Check DKG node reachability and measure connection latency before executing tool operations.
+
+**Parameters:** None required.
+
+**Returns:**
+```typescript
+interface GetNodeStatusResult {
+  success: boolean;
+  message: string;
+  status: 'online' | 'offline';
+  nodeUrl: string;   // Configured DKG_DAEMON_URL
+  latencyMs: number; // Round-trip latency in milliseconds
+  statusCode?: number; // HTTP status code if node responded with non-2xx
+  error?: string;    // Error message if node is unreachable
 }
 ```
 
@@ -590,37 +646,53 @@ This demonstrates how the system enables true multi-agent collaboration with ful
 
 ## 5. Forward Path to Verified Memory
 
-The `toClaimReview()` serializer converts validated artifacts into `schema:ClaimReview` format, preparing them for Oracle integration. When DKG v10 Verified Memory becomes available, these artifacts can be anchored on-chain with cryptographic proof of:
+### From Working Memory Graphs to Endorsement Chains
 
-- **Authorship:** Which agent/session produced the finding
-- **Timing:** When the finding was captured
-- **Lineage:** What prior artifacts it derived from
-- **Validation:** Status progression through the trust gradient
+Working Memory artifacts in dkg-claude-code-memory are not isolated documents — they are nodes in a PROV-O provenance graph. Each `capture_research_finding` call that includes a `derivedFrom` array creates `prov:wasDerivedFrom` quads linking the new artifact to its predecessors. Over a multi-session research workflow, this produces a directed acyclic graph of evidence: raw observations at the leaves, synthesized findings at the interior nodes, and a `knowledge_synthesis` artifact at the root.
 
-This enables bug-bounty programs to consume findings directly from the DKG, with full provenance for dispute resolution and reward allocation.
+This graph structure is the foundation for Verified Memory endorsement chains. When DKG v10 introduces on-chain endorsement (Round 2), each node in the provenance DAG can be independently verified: a third-party auditor can confirm that a synthesis artifact was derived from the specific observation artifacts that produced it, without trusting the researcher's claim. The graph is self-certifying.
+
+### ClaimReview Serialization — Ready Today
+
+The `toClaimReview()` serializer in `src/core/serializers.ts` converts any stored artifact into a `schema:ClaimReview` JSON-LD document — the format consumed by the OriginTrail Oracle. The `get_claim_review` MCP tool (tool 9) exposes this as a callable operation.
+
+```typescript
+// Already implemented — call via MCP tool or library
+import { toClaimReview } from 'dkg-claude-code-memory';
+const claimReview = toClaimReview(artifactRecord);
+// Returns: { '@context': 'https://schema.org/', '@type': 'ClaimReview',
+//   name: '...', reviewBody: '...', reviewRating: { ratingValue: 4 },
+//   url: 'urn:dkg:wm:sha256:...', datePublished: '2026-05-25T...' }
+```
+
+The `reviewRating.ratingValue` is derived from the artifact's trust gradient status: `draft`→1, `needs_sources`→2, `review_needed`→3, `validated`→4, `ready_to_share`→5. An artifact must reach `validated` status before its ClaimReview rating exceeds 3 — aligning the oracle confidence score with the research workflow.
+
+### Concrete Round 2 Extension Plan
+
+In Round 2, after Verified Memory APIs are available, a single new tool `anchor_to_verified_memory(artifactId)` will:
+1. Retrieve the artifact and its full `derivedFrom` provenance chain from Working Memory
+2. Call `toClaimReview()` to produce the Oracle-ready document
+3. Submit the ClaimReview plus the PROV-O subgraph to the Verified Memory layer via the DKG Curator API
+4. Return the on-chain Knowledge Asset UAL for external reference
+
+No other changes to the existing 10 tools or data model are required. The `ready_to_share` status in the trust gradient is designed specifically as the pre-promotion checkpoint — only artifacts that have passed community review enter the Verified Memory layer.
+
+This positions dkg-claude-code-memory as the natural upstream source for DKG v10's full memory stack: agents capture in Working Memory, teams validate in Shared Memory, and the Oracle anchors in Verified Memory.
 
 ### ClaimReview Serialization Example
 
 ```typescript
-const claimReview = artifact.toClaimReview();
+const claimReview = toClaimReview(artifactRecord);
 // Returns:
 // {
+//   "@context": "https://schema.org/",
 //   "@type": "ClaimReview",
-//   "claimReviewed": "RocketMegapoolDelegate.distribute() DoS via challengeExit alternation",
-//   "reviewAspect": "security_vulnerability",
-//   "reviewRating": {
-//     "@type": "Rating",
-//     "ratingValue": "HIGH",
-//     "bestRating": "CRITICAL",
-//     "worstRating": "LOW"
-//   },
-//   "reviewer": {
-//     "@type": "Organization",
-//     "name": "drMurlly Security Research",
-//     "identifier": "urn:dkg:agent:drMurlly"
-//   },
-//   "dateReview": "2026-05-25T14:32:00Z",
-//   "url": "urn:dkg:wm:sha256:jkl012..."
+//   "name": "OOB write in fd_shred_merkle_parse via peer-controlled data_cnt",
+//   "reviewBody": "fd_shred.c:247 — stack buffer overflow when data_cnt > 32...",
+//   "reviewRating": { "@type": "Rating", "ratingValue": 4, "bestRating": 5 },
+//   "url": "urn:dkg:wm:sha256:abc123...",
+//   "datePublished": "2026-05-25T14:32:00Z",
+//   "author": { "@type": "Person", "name": "drMurlly" }
 // }
 ```
 
@@ -632,7 +704,7 @@ const claimReview = artifact.toClaimReview();
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DKG_NODE_URL` | Yes | `http://127.0.0.1:9200` | DKG v10 node HTTP endpoint |
+| `DKG_DAEMON_URL` | Yes | `http://127.0.0.1:9200` | DKG v10 node HTTP endpoint |
 | `DKG_AUTH_TOKEN` | Yes | - | Authentication token for DKG API |
 | `DKG_WM_MIN_LENGTH` | No | `80` | Minimum content length for artifacts |
 | `DKG_WM_REDACTION` | No | `true` | Enable secret redaction |

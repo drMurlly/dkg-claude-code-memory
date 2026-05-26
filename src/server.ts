@@ -151,10 +151,9 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string', description: 'Session ID to synthesize' },
+        sessionId: { type: 'string', description: `Session ID to synthesize (defaults to current session: ${SESSION_ID})` },
         title: { type: 'string', description: 'Optional title for the summary artifact' },
       },
-      required: ['sessionId'],
     },
   },
   {
