@@ -80,6 +80,11 @@ export async function startServer(): Promise<void> {
               enum: ['draft', 'needs_sources', 'review_needed', 'validated', 'ready_to_share', 'deprecated', 'discarded'],
               description: 'Trust-gradient status (default: draft)',
             },
+            sensitivity: {
+              type: 'string',
+              enum: ['public', 'internal', 'confidential'],
+              description: 'Access-control level (schema:accessMode). "confidential" artifacts are blocked from promotion to Shared Memory.',
+            },
             sessionId: { type: 'string', description: 'Session identifier for grouping related artifacts' },
             conversationId: { type: 'string', description: 'Conversation identifier for chat provenance' },
             toolCalls: { type: 'array', items: { type: 'string' }, description: 'Tool call identifiers used to produce this artifact' },

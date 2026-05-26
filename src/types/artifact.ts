@@ -134,7 +134,8 @@ export interface CaptureParams {
 
 /**
  * Raw input for artifact capture, passed to normalizeArtifact().
- * Internal pipeline type — does not include sensitivity or derivedFrom.
+ * Internal pipeline type — carries sensitivity (validated in the normalizer)
+ * but not derivedFrom (handled separately at serialization time).
  */
 export interface RawCaptureInput {
   content: string;
@@ -142,6 +143,7 @@ export interface RawCaptureInput {
   artifactType?: ArtifactType;
   title?: string;
   status?: ArtifactStatus;
+  sensitivity?: SensitivityLevel;
   sessionId?: string;
   conversationId?: string;
   toolCalls?: string[];

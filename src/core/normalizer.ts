@@ -4,6 +4,7 @@
  */
 
 import type { ArtifactRecord, ArtifactType, RawCaptureInput } from '../types/artifact.js';
+import { SENSITIVITY_LEVELS } from '../types/artifact.js';
 import type { McpConfig } from '../types/mcp.js';
 import { redact } from './redactor.js';
 import { buildProvenance, SubAgentContext } from './provenance-builder.js';
@@ -54,6 +55,9 @@ export function normalizeArtifact(
     content: redacted,
     contentHash,
     status,
+    // Only persist a valid sensitivity level; unknown values are dropped so they
+    // can never reach schema:accessMode or fool the confidential promote-guard.
+    ...(raw.sensitivity && SENSITIVITY_LEVELS.includes(raw.sensitivity) ? { sensitivity: raw.sensitivity } : {}),
     author: { id: config.authorId },
     agent: { id: config.agentId, framework: 'claude-code', version: PACKAGE_VERSION },
     provenance: {

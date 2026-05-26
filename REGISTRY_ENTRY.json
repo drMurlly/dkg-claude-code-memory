@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "commit": "a6f1e0ad67a4f70158846a70df185e9dc9be19a8",
   "npmPackage": "dkg-claude-code-memory",
-  "demo": "https://asciinema.org/a/2Fr7yXvOQvT6h2Ft",
+  "demo": "https://github.com/drMurlly/dkg-claude-code-memory/releases/download/v1.0.0/dkg-claude-code-memory-demo.mp4",
   "author": "drMurlly",
   "license": "Apache-2.0",
   "repository": "https://github.com/drMurlly/dkg-claude-code-memory",
@@ -98,8 +98,8 @@
       "description": "Check DKG node reachability and measure connection latency \u2014 useful for diagnosing connection issues before running tool operations"
     }
   ],
-  "testCount": 546,
-  "coverage": "100% statements, 99.80% branches",
+  "testCount": 552,
+  "coverage": "100% statements, 99.81% branches",
   "tags": [
     "dkg",
     "memory",

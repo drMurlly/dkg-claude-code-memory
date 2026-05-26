@@ -3,7 +3,7 @@
 **Date:** 2026-05-25  
 **Author:** Selon (drMurlly)  
 **Version:** 1.0.0  
-**Target:** OriginTrail DKG v10 Round 1 — Flagship Tier (8,000–10,000 TRAC)  
+**Target:** OriginTrail DKG v10 Round 1 Integrations — Flagship Tier  
 **Repository:** https://github.com/drMurlly/dkg-claude-code-memory  
 **License:** Apache-2.0
 
@@ -54,7 +54,7 @@ The DKG v10 memory model defines three layers. This integration currently implem
 │                                                                 │
 │  1. capture_research_finding({                                  │
 │       content: "Reentrancy in X.sol:42",                        │
-│       type: "vulnerability_finding",                            │
+│       artifactType: "vulnerability_finding",                    │
 │       derivedFrom: ["urn:dkg:wm:hash123"]  ← lineage link      │
 │     })                                                          │
 │                                                                 │
@@ -132,10 +132,10 @@ The DKG v10 memory model defines three layers. This integration currently implem
 ```typescript
 interface CaptureParams {
   content: string;              // Required: artifact content (≥80 chars)
-  type: ArtifactType;           // Required: e.g., "vulnerability_finding", "research_note"
+  artifactType?: ArtifactType;  // Optional: e.g., "vulnerability_finding"; inferred from source if omitted
   title?: string;               // Optional: human-readable title
   status?: ArtifactStatus;      // Optional: default "draft"
-  sensitivity?: 'public' | 'internal' | 'confidential';  // Optional: default "internal"
+  sensitivity?: 'public' | 'internal' | 'confidential';  // Optional: access level (schema:accessMode); omitted = unset
   derivedFrom?: string[];       // Optional: array of artifact URNs this artifact derives from
   source?: string;              // Optional: origin of the content (e.g., "tool", "file", "manual")
   sessionId?: string;           // Optional: default from env or generated
@@ -163,7 +163,7 @@ interface CaptureResult {
 ```typescript
 const result = await client.capture_research_finding({
   content: "Reentrancy vulnerability found in TokenVault.withdraw():42. Attacker can re-enter before balance update.",
-  type: "vulnerability_finding",
+  artifactType: "vulnerability_finding",
   status: "needs_sources",
   derivedFrom: ["urn:dkg:wm:7f3a2b1c9d0e4f56"],  // Link to prior analysis
   subAgentId: "reentrancy-analyzer",
@@ -495,7 +495,7 @@ After analyzing RocketMegapoolDelegate.distribute() and RocketMegapoolManager.ch
 ```typescript
 const reentrancyFinding = await client.capture_research_finding({
   content: "HIGH: RocketMegapoolDelegate.distribute() can be permanently DoS'd via alternating challengeExit() calls by two oDAO members. Root cause: numLockedValidators gate never clears if challengers alternate every 27h. Attack requires only 2 colluding oDAO members, no capital cost. Expected outcome: all rewards frozen indefinitely. Confidence: HIGH based on state machine analysis of RocketMegapoolManager.sol:247-289. PoC Status: TODO — need forge test on mainnet fork.",
-  type: "vulnerability_finding",
+  artifactType: "vulnerability_finding",
   status: "needs_sources",
   derivedFrom: [
     "urn:dkg:wm:7f3a2b1c9d0e4f56",  // Prior state machine analysis from Session ccm-fire-20260524
@@ -530,7 +530,7 @@ She captures a new finding linking the patterns across programs:
 ```typescript
 const patternFinding = await client.capture_research_finding({
   content: "CROSS-PROGRAM PATTERN: State machine DoS via alternating transitions appears in both Firedancer (challengeExit) and Polymarket (oracle update). Common root: single validator/keeper can maintain lock indefinitely if two actors alternate. Mitigation: require quorum for state transitions or add cooldown periods. This pattern is worth tracking across all 5 concurrent audits.",
-  type: "research_note",
+  artifactType: "research_note",
   status: "draft",
   derivedFrom: [
     "urn:dkg:wm:c4e8d2f01a3b5c69",  // The Firedancer finding captured earlier
@@ -619,7 +619,7 @@ In a team audit, multiple agents can work on the same program:
 // Agent A (Static Analyzer) captures initial grep results
 const grepResult = await client.capture_research_finding({
   content: "Static analysis: Found 47 occurrences of 'challengeExit' across 12 contracts in RocketMegapool codebase. Hotspots: RocketMegapoolManager.sol (23), RocketMegapoolDelegate.sol (15), RocketNetworkRevenues.sol (9).",
-  type: "code_analysis",
+  artifactType: "code_analysis",
   status: "review_needed",
   subAgentId: "static-analyzer",
   agentRole: "sast-specialist"
@@ -628,7 +628,7 @@ const grepResult = await client.capture_research_finding({
 // Agent B (Security Researcher) builds on the grep results
 const finding = await client.capture_research_finding({
   content: "HIGH: RocketMegapoolDelegate.distribute() DoS via challengeExit alternation. See static analysis grep result for contract locations.",
-  type: "vulnerability_finding",
+  artifactType: "vulnerability_finding",
   status: "needs_sources",
   derivedFrom: [grepResult.artifactId],  // Links to Agent A's work
   subAgentId: "security-researcher",
@@ -638,7 +638,7 @@ const finding = await client.capture_research_finding({
 // Agent C (PoC Developer) validates the finding
 const pocResult = await client.capture_research_finding({
   content: "PoC complete: forge test --fork-url mainnet passes. Attack requires 2 colluding oDAO members. Confirmed HIGH severity.",
-  type: "code_analysis",
+  artifactType: "code_analysis",
   status: "validated",
   derivedFrom: [finding.artifactId],  // Links to Agent B's finding
   subAgentId: "poc-developer",
@@ -745,7 +745,7 @@ Then configure MCP to point to `dist/index.js`.
 | **Trust Gradient** | None | **7-status workflow (draft → ready_to_share)** |
 | **Sensitivity Guard** | None | **`sensitivity` field + promotion guard** |
 | **Redaction** | None | **Automatic secret redaction** |
-| **Test Coverage** | 147 tests | **546 tests, 100% stmt, 99.80% branch** |
+| **Test Coverage** | 147 tests | **552 tests, 100% stmt, 99.81% branch** |
 | **Tool Count** | 5 CLI commands | **10 MCP tools** |
 | **Oracle Readiness** | None | **`get_claim_review` tool → ClaimReview JSON-LD** |
 | **Node Health Check** | None | **`get_node_status` tool** |
@@ -782,7 +782,7 @@ Redacted content is replaced with `[REDACTED:<pattern_type>]` before storage.
 
 - Working Memory artifacts persist indefinitely unless explicitly deleted
 - Shared Memory artifacts replicate across the team's DKG nodes
-- Deleted artifacts are marked as `retired` but retained for provenance integrity
+- Artifacts are never hard-deleted; they can be marked `deprecated` or `discarded` via `update_artifact_status` and are retained for provenance integrity
 
 ---
 
@@ -814,7 +814,7 @@ Redacted content is replaced with `[REDACTED:<pattern_type>]` before storage.
 - [x] MCP tool catalog
 - [x] PROV-O provenance
 - [x] Trust gradient workflow
-- [ ] Full integration testing with DKG v10 node
+- [x] Full integration testing with DKG v10 node (13 live integration tests)
 
 ### Round 2 (Next)
 - [ ] Verified Memory anchoring (`anchor_to_verified_memory` tool)

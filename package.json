@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:live": "DKG_INTEGRATION_TEST=1 vitest run --config vitest.live.config.ts",
-    "prepublishOnly": "npm test && npm run build && npm audit --production"
+    "prepublishOnly": "npm test && npm run build && npm audit --omit=dev"
   },
   "keywords": [
     "mcp",
@@ -24,6 +24,14 @@
   ],
   "author": "drMurlly",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drMurlly/dkg-claude-code-memory.git"
+  },
+  "homepage": "https://github.com/drMurlly/dkg-claude-code-memory#readme",
+  "bugs": {
+    "url": "https://github.com/drMurlly/dkg-claude-code-memory/issues"
+  },
   "engines": {
     "node": ">=22.0.0"
   },

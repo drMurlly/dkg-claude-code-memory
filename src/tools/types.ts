@@ -5,7 +5,7 @@
 import type { DkgClient } from '../core/dkg-client.js';
 import type { DedupeStore } from '../core/dedupe-store.js';
 import type { McpConfig } from '../types/mcp.js';
-import type { ArtifactType, ArtifactStatus } from '../types/artifact.js';
+import type { ArtifactType, ArtifactStatus, SensitivityLevel } from '../types/artifact.js';
 
 /**
  * Dependencies injected into all tool handlers.
@@ -33,6 +33,8 @@ export interface CaptureParams {
   artifactType?: ArtifactType;
   title?: string;
   status?: ArtifactStatus;
+  /** Access-control level — written as schema:accessMode; 'confidential' blocks promotion */
+  sensitivity?: SensitivityLevel;
   sessionId?: string;
   conversationId?: string;
   toolCalls?: string[];

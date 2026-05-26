@@ -37,7 +37,7 @@
   },
   "trustTier": "community",
   "designBrief": "https://github.com/drMurlly/dkg-claude-code-memory/blob/main/docs/DESIGN_BRIEF.md",
-  "demo": "https://asciinema.org/a/2Fr7yXvOQvT6h2Ft",
+  "demo": "https://github.com/drMurlly/dkg-claude-code-memory/releases/download/v1.0.0/dkg-claude-code-memory-demo.mp4",
   "promotionPath": "Artifacts enter Working Memory as 'draft'. Claude Code upgrades status through draft → needs_sources → review_needed → validated → ready_to_share via update_artifact_status. On explicit user confirmation, promote_to_shared_memory calls POST /api/assertion/{name}/promote to gossip the artifact to team peers. Every artifact carries a stable UAL and ClaimReview-shaped JSON-LD (get_claim_review tool) — ready for OriginTrail Oracle consumption in Round 2 without a schema rewrite. The same SPARQL queries (wm:WorkingMemoryArtifact, wm:status, wm:artifactType predicates) return oracle-consumable artifacts across all three layers unchanged.",
   "fitNotes": "Directly implements the 'ChatGPT / Claude plugin or MCP server that writes to Working Memory' shape from Section 4 — the first suggestion listed. Claude Code sub-agents are an explicit priority target (Section 5). Differentiates by tracking sub-agent provenance chains (parentTaskId/subAgentId/agentRole RDF quads) across orchestrated agent hierarchies — a capability not present in any other submitted integration. Concrete first user is the maintainer (drMurlly) running multi-agent bug-bounty research sessions on Immunefi/Code4rena/Sherlock, where research notes, vulnerability hypotheses, and audit findings vanish at session end today and accumulate as queryable DKG memory once this MCP server is loaded."
 }

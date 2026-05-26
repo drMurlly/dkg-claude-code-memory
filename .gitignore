@@ -19,3 +19,7 @@ auth.token
 
 # Internal tooling
 .audit-rag/
+
+# Internal planning, strategy & agent-guidance docs (not part of the public submission)
+plans/
+CLAUDE.md

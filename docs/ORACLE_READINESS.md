@@ -35,7 +35,7 @@ Each artifact is serialized into RDF quads using the `serializeToQuads()` functi
 
 ## 2. toClaimReview() Output Format and Field Mapping
 
-The `toClaimReview()` serializer converts an `ArtifactRecord` into the schema.org/ClaimReview format expected by the OriginTrail Oracle. It is implemented in `src/core/serializers.ts`, exported from `dist/index.js`, and covered by 10 unit tests.
+The `toClaimReview()` serializer converts an `ArtifactRecord` into the schema.org/ClaimReview format expected by the OriginTrail Oracle. It is implemented in `src/core/serializers.ts`, exported from `dist/index.js`, and covered by 13 unit tests.
 
 ```typescript
 // toClaimReview() — implemented in src/core/serializers.ts, exported from dist/index.js
@@ -173,7 +173,7 @@ Agent A discovers a security vulnerability in a smart contract and stores it as 
 Agent A runs slither analysis and finds a reentrancy vulnerability:
 
 ```bash
-slither /home/selon/immunefi/immunefi_27_firedancer/src \
+slither ./src \
   --filter-paths 'test|mock' \
   --check-list 'reentrancy-benign'
 ```
@@ -186,7 +186,7 @@ Agent A calls the MCP tool to store the finding:
 {
   "tool": "capture_research_finding",
   "arguments": {
-    "type": "vulnerability_finding",
+    "artifactType": "vulnerability_finding",
     "title": "Reentrancy in RocketMegapoolDelegate.distribute()",
     "content": "The distribute() function lacks reentrancy guard...",
     "sensitivity": "confidential"
@@ -296,4 +296,4 @@ Response:
 - [OriginTrail DKG v10 Documentation](https://docs.origintrail.io/general-faqs/dkg-v6-upcoming-features/verifiable-ai-oracle)
 - [schema.org/ClaimReview](https://schema.org/ClaimReview)
 - [DKG v10 Round 1 Integrations Bounty](https://docs.origintrail.io/origintrail-v9-v10/origintrail-dkg-v10-bounty-program)
-- Project README: `/home/selon/dkg-claude-code-memory/README.md`
+- Project README: [`README.md`](../README.md)

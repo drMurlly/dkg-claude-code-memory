@@ -403,4 +403,30 @@ describe('normalizeArtifact()', () => {
       expect(validStatuses).toContain(artifact!.status);
     });
   });
+
+  // ─────────────────────────────────────────
+  // Sensitivity / accessMode
+  // ─────────────────────────────────────────
+  describe('sensitivity handling', () => {
+    it('persists a valid confidential sensitivity', () => {
+      const artifact = normalizeArtifact(makeRaw({ sensitivity: 'confidential' }), BASE_CONFIG);
+      expect(artifact!.sensitivity).toBe('confidential');
+    });
+
+    it('persists public and internal sensitivity levels', () => {
+      expect(normalizeArtifact(makeRaw({ sensitivity: 'public' }), BASE_CONFIG)!.sensitivity).toBe('public');
+      expect(normalizeArtifact(makeRaw({ sensitivity: 'internal' }), BASE_CONFIG)!.sensitivity).toBe('internal');
+    });
+
+    it('omits sensitivity when not provided', () => {
+      const artifact = normalizeArtifact(makeRaw(), BASE_CONFIG);
+      expect(artifact!.sensitivity).toBeUndefined();
+    });
+
+    it('drops an unknown sensitivity value (never reaches accessMode)', () => {
+      const raw = makeRaw({ sensitivity: 'top-secret' as unknown as 'confidential' });
+      const artifact = normalizeArtifact(raw, BASE_CONFIG);
+      expect(artifact!.sensitivity).toBeUndefined();
+    });
+  });
 });

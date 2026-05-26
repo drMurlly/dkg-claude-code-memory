@@ -84,7 +84,7 @@ When recording a new finding, include the `derivedFrom` field with the URN of th
   "tool": "capture_research_finding",
   "arguments": {
     "content": "Reentrancy vulnerability in Vault.sol:withdraw() at line 234 — missing reentrancy guard allows recursive calls before balance update",
-    "type": "vulnerability_finding",
+    "artifactType": "vulnerability_finding",
     "title": "Reentrancy in Vault.withdraw()",
     "sensitivity": "internal"
   }
@@ -96,7 +96,7 @@ When recording a new finding, include the `derivedFrom` field with the URN of th
   "tool": "capture_research_finding",
   "arguments": {
     "content": "PoC demonstrating 50% fund drain via reentrancy in Vault.withdraw(). forge test passes on mainnet fork block 21500000.",
-    "type": "code_analysis",
+    "artifactType": "code_analysis",
     "title": "PoC: Vault.withdraw() reentrancy drain",
     "derivedFrom": ["urn:dkg:wm:7f3a2b1c9d0e4f56"],
     "sensitivity": "confidential"
@@ -253,7 +253,7 @@ Not all work should be shared. The DKG supports sensitivity controls to keep int
   "tool": "capture_research_finding",
   "arguments": {
     "content": "Initial thoughts on potential issue — needs PoC verification before sharing",
-    "type": "research_note",
+    "artifactType": "research_note",
     "title": "Draft: possible price manipulation in Vault",
     "sensitivity": "internal"
   }
@@ -264,7 +264,7 @@ Not all work should be shared. The DKG supports sensitivity controls to keep int
   "tool": "capture_research_finding",
   "arguments": {
     "content": "Confirmed reentrancy via forge test on block 21500000. Attacker can drain 50% of TVL.",
-    "type": "vulnerability_finding",
+    "artifactType": "vulnerability_finding",
     "title": "CONFIRMED: Vault.withdraw() reentrancy",
     "sensitivity": "confidential"
   }

@@ -91,6 +91,23 @@ describe('handleCapture', () => {
       expect(mockClient.createOrWriteAssertion).toHaveBeenCalled();
     });
 
+    it('writes a schema:accessMode quad when sensitivity is provided (end-to-end)', async () => {
+      const content = 'A'.repeat(120);
+      await handleCapture({ content, artifactType: 'vulnerability_finding', sensitivity: 'confidential' }, deps);
+      const arg = (mockClient.createOrWriteAssertion as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const accessModeQuad = arg.quads.find((q: { predicate: string }) => q.predicate.endsWith('accessMode'));
+      expect(accessModeQuad).toBeDefined();
+      expect(accessModeQuad.object).toContain('confidential');
+    });
+
+    it('omits the accessMode quad when no sensitivity is provided', async () => {
+      const content = 'B'.repeat(120);
+      await handleCapture({ content, artifactType: 'research_note' }, deps);
+      const arg = (mockClient.createOrWriteAssertion as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const accessModeQuad = arg.quads.find((q: { predicate: string }) => q.predicate.endsWith('accessMode'));
+      expect(accessModeQuad).toBeUndefined();
+    });
+
     it('returns contentHash', async () => {
       const content = 'A'.repeat(100);
       const result = await handleCapture({ content }, deps);

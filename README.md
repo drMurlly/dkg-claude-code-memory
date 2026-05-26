@@ -2,11 +2,17 @@
 
 [![CI](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/dkg-claude-code-memory)](https://www.npmjs.com/package/dkg-claude-code-memory)
-[![Demo](https://img.shields.io/badge/demo-asciinema-orange)](https://asciinema.org/a/2Fr7yXvOQvT6h2Ft)
+[![Demo](https://img.shields.io/badge/demo-video-blue)](https://github.com/drMurlly/dkg-claude-code-memory/releases/download/v1.0.0/dkg-claude-code-memory-demo.mp4)
 
 An MCP server that gives Claude Code agents persistent, verifiable Working Memory on [OriginTrail DKG v10](https://origintrail.io). Every research finding, vulnerability analysis, code review, or decision a Claude Code agent produces is deposited into DKG Working Memory with cryptographic provenance — and can be retrieved, updated, and promoted toward Shared Memory across sessions and sub-agents.
 
 Built for the [DKG v10 Round 1 Integrations Bounty](https://docs.origintrail.io/origintrail-v9-v10/origintrail-dkg-v10-bounty-program) — theme: *LLM-Wiki & Autoresearch Agents*.
+
+---
+
+## Demo
+
+**[▶ Watch the demo video](https://github.com/drMurlly/dkg-claude-code-memory/releases/download/v1.0.0/dkg-claude-code-memory-demo.mp4)** — a narrated terminal walkthrough of all 10 MCP tools running against a live DKG v10 node: capture with content-addressable IDs and provenance, sub-agent `derivedFrom` chains, SPARQL search, the trust-gradient lifecycle through promotion, an Oracle-ready ClaimReview, and the full passing test suite.
 
 ---
 
@@ -48,7 +54,7 @@ Artifacts can be classified with a `sensitivity` level to control sharing behavi
 ```typescript
 capture_research_finding({
   content: "Private key handling vulnerability in withdraw()...",
-  type: "vulnerability_finding",
+  artifactType: "vulnerability_finding",
   sensitivity: "confidential",  // Options: 'public' | 'internal' | 'confidential'
   status: "draft"
 });
@@ -70,7 +76,7 @@ Artifacts can reference parent artifacts to build verifiable provenance chains:
 ```typescript
 capture_research_finding({
   content: "Reentrancy vulnerability in withdraw() allows recursive calls...",
-  type: "vulnerability_finding",
+  artifactType: "vulnerability_finding",
   derivedFrom: [
     "urn:dkg:wm:d82c6a1b9f3e4c7d",  // Initial analysis
     "urn:dkg:wm:a17b93f0c2e4d518"   // Code review
@@ -247,7 +253,7 @@ When used with Claude Code Agent Teams, sub-agents can tag their artifacts with 
 ```typescript
 capture_research_finding({
   content: "...",
-  type: "vulnerability_finding",
+  artifactType: "vulnerability_finding",
   parentTaskId: "ccm-<parent-session-id>",
   subAgentId: "reentrancy-analyzer",
   agentRole: "security-auditor"
