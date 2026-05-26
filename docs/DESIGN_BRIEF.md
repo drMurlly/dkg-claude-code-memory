@@ -178,7 +178,7 @@ interface SearchParams {
   type?: ArtifactType;          // Optional: filter by artifact type
   status?: ArtifactStatus;      // Optional: filter by status
   sessionId?: string;           // Optional: filter by session ID
-  limit?: number;               // Optional: default 50
+  limit?: number;               // Optional: default 20, max 100
 }
 ```
 
@@ -373,10 +373,8 @@ interface SessionSummary {
 **Parameters:**
 ```typescript
 interface QuerySharedParams {
-  keyword?: string;             // Optional: search term
-  type?: ArtifactType;          // Optional: filter by type
-  teamId?: string;              // Optional: team identifier
-  limit?: number;               // Optional: default 100
+  query: string;                // Required: SPARQL query string against Shared Memory graph
+  limit?: number;               // Optional: max results (default 20, max 100)
 }
 ```
 
@@ -544,13 +542,15 @@ This demonstrates how the system enables cross-program pattern recognition — a
 
 At the end of the day, drMurlly generates a session summary:
 
-```typescript
-const daySummary = await client.synthesize_session({
-  sessionId: "ccm-fire-20260525-001",
-  includeDerivedFrom: true,
-  outputFormat: "markdown"
-});
-// Returns markdown summary of all 12 artifacts captured today, with provenance graph
+```json
+{
+  "tool": "synthesize_session",
+  "arguments": {
+    "sessionId": "ccm-fire-20260525-001",
+    "title": "Firedancer audit — Day 2 synthesis"
+  }
+}
+// Returns: knowledge_synthesis artifact with consolidated content, type counts, status breakdown
 ```
 
 The summary includes:
@@ -709,8 +709,11 @@ const claimReview = toClaimReview(artifactRecord);
 | `DKG_WM_MIN_LENGTH` | No | `80` | Minimum content length for artifacts |
 | `DKG_WM_REDACTION` | No | `true` | Enable secret redaction |
 | `DKG_WM_DEDUPE` | No | `true` | Enable content deduplication |
-| `DKG_SESSION_ID` | No | auto-generated | Default session ID for artifacts |
-| `DKG_AGENT_ID` | No | "default-agent" | Default agent identifier |
+| `DKG_WM_CONTEXT_GRAPH` | No | `working-memory` | Named graph for Working Memory |
+| `DKG_WM_ASSERTION_NAME` | No | `artifacts` | DKG assertion name |
+| `DKG_CCM_STATE_DIR` | No | `~/.dkg-claude-code-memory` | Local state directory |
+| `DKG_WM_AUTHOR_ID` | No | `unknown-author` | Human-readable author identifier |
+| `DKG_WM_AGENT_ID` | No | `claude-code-agent` | Agent identifier for provenance quads |
 
 ### From Source
 
@@ -809,8 +812,9 @@ Redacted content is replaced with `[REDACTED:<pattern_type>]` before storage.
 - [ ] Full integration testing with DKG v10 node
 
 ### Round 2 (Next)
-- [ ] Verified Memory anchoring
-- [ ] `schema:ClaimReview` oracle integration
+- [ ] Verified Memory anchoring (`anchor_to_verified_memory` tool)
+- [x] `schema:ClaimReview` serialization — `toClaimReview()` in `src/core/serializers.ts` + `get_claim_review` MCP tool
+- [ ] OriginTrail Oracle API submission workflow
 - [ ] Cross-chain proof verification
 - [ ] Dispute resolution workflow
 

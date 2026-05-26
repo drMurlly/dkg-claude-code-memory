@@ -15,7 +15,7 @@ The OriginTrail Oracle is a verifiable AI oracle service that allows external sy
 
 **Working Memory vs. Shared Memory:**
 - **Working Memory:** Temporary, agent-specific artifacts with full provenance tracking. These are stored with SHA-256 content hashes and URN identifiers.
-- **Shared Memory:** Promoted artifacts that have passed validation and can be shared across agents/sessions. Promotion requires status transition through the 7-status workflow (draft → reviewed → ready_to_share → shared).
+- **Shared Memory:** Promoted artifacts that have passed validation and can be shared across agents/sessions. Promotion requires status transition through the trust gradient: `draft → needs_sources → review_needed → validated → ready_to_share`.
 
 **Cryptographic Provenance:**
 Each artifact is serialized into RDF quads using the `serializeToQuads()` function in `src/core/serializers.ts`. The quads include:
@@ -203,13 +203,12 @@ Agent A calls the MCP tool to store the finding:
 
 ```json
 {
-  "tool": "store_artifact",
-  "params": {
-    "artifactType": "security-finding",
+  "tool": "capture_research_finding",
+  "arguments": {
+    "type": "vulnerability_finding",
     "title": "Reentrancy in RocketMegapoolDelegate.distribute()",
     "content": "The distribute() function lacks reentrancy guard...",
-    "sensitivity": "high",
-    "status": "draft"
+    "sensitivity": "confidential"
   }
 }
 ```
@@ -230,11 +229,10 @@ Agent B retrieves the artifact, verifies the finding, and updates status:
 
 ```json
 {
-  "tool": "update_artifact",
-  "params": {
-    "artifactId": "urn:artifact:7f3a2b1c",
-    "status": "ready_to_share",
-    "reviewNotes": "Verified via forge test on mainnet fork"
+  "tool": "update_artifact_status",
+  "arguments": {
+    "artifactId": "urn:dkg:wm:7f3a2b1c",
+    "status": "ready_to_share"
   }
 }
 ```
@@ -290,7 +288,7 @@ Response:
 
 - **AI Model Verification:** The Oracle verifies artifact provenance, not the underlying AI model's reasoning quality.
 - **Off-Chain Content:** Only artifacts stored on DKG Working Memory can be verified. Local files without DKG registration are not verifiable.
-- **Private Artifacts:** Artifacts with `sensitivity: private` should not be submitted to the Oracle.
+- **Confidential Artifacts:** Artifacts with `sensitivity: confidential` should not be submitted to the Oracle without explicit confirmation. The `promote_to_shared_memory` tool enforces this guard automatically.
 - **Real-Time Verification:** On-chain confirmation takes time (typically 10-30 minutes on mainnet).
 
 ### Security Considerations

@@ -826,11 +826,11 @@ PROMOTED  (via promote_to_shared_memory)
 
 All findings in this session were captured with `"sensitivity": "confidential"`.
 
-| Sensitivity | Who can read | When to use |
-|-------------|--------------|-------------|
-| `public` | Anyone | Findings already disclosed / patched publicly |
-| `confidential` | Team agents with clearance | Active private bug-bounty findings (this session) |
-| `restricted` | Named agents only | Findings under coordinated disclosure embargo |
+| Sensitivity | Access | When to use |
+|-------------|--------|-------------|
+| `public` | Anyone after promotion | Findings already disclosed / patched publicly |
+| `internal` | Team agents | In-progress research, unverified hypotheses |
+| `confidential` | Team with explicit clearance — **blocks promotion** | Active private bug-bounty findings under embargo |
 
 Private bug-bounty findings **must** use `confidential` until the contest
 period closes or the program grants disclosure permission. Promoting a
@@ -864,5 +864,5 @@ to enumerate all artifacts that trace back to this vulnerability.
 
 ---
 
-*Demo script reflects the real MCP tool signatures for dkg-claude-code-memory v0.9.x.
+*Demo script reflects the real MCP tool signatures for dkg-claude-code-memory v1.0.0.
 Firedancer audit context is from the live Immunefi contest (commit 2f4625e3, scope confirmed).*

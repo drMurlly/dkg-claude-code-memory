@@ -35,9 +35,9 @@ Create a `claude_desktop_config.json` (or equivalent MCP config) with the follow
       "env": {
         "DKG_DAEMON_URL": "http://127.0.0.1:9200",
         "DKG_AUTH_TOKEN": "your-bearer-token",
-        "DKG_CONTEXT_GRAPH": "working-memory",
-        "DKG_AUTHOR_ID": "your-name",
-        "DKG_AGENT_ID": "agent-alpha"
+        "DKG_WM_CONTEXT_GRAPH": "working-memory",
+        "DKG_WM_AUTHOR_ID": "your-name",
+        "DKG_WM_AGENT_ID": "agent-alpha"
       }
     }
   }
@@ -46,7 +46,7 @@ Create a `claude_desktop_config.json` (or equivalent MCP config) with the follow
 
 ### Multi-Agent Team Setup
 
-For a 3-agent research team (e.g., `agent-alpha`, `agent-beta`, `agent-gamma`), each agent gets its own config file with a unique `DKG_AGENT_ID` but the same `DKG_DAEMON_URL`:
+For a 3-agent research team (e.g., `agent-alpha`, `agent-beta`, `agent-gamma`), each agent gets its own config file with a unique `DKG_WM_AGENT_ID` but the same `DKG_DAEMON_URL`:
 
 ```json
 {
@@ -57,16 +57,16 @@ For a 3-agent research team (e.g., `agent-alpha`, `agent-beta`, `agent-gamma`), 
       "env": {
         "DKG_DAEMON_URL": "http://127.0.0.1:9200",
         "DKG_AUTH_TOKEN": "your-bearer-token",
-        "DKG_CONTEXT_GRAPH": "working-memory",
-        "DKG_AUTHOR_ID": "your-name",
-        "DKG_AGENT_ID": "agent-alpha"
+        "DKG_WM_CONTEXT_GRAPH": "working-memory",
+        "DKG_WM_AUTHOR_ID": "your-name",
+        "DKG_WM_AGENT_ID": "agent-alpha"
       }
     }
   }
 }
 ```
 
-**Key Principle:** The `DKG_AGENT_ID` identifies who created each memory entry. The `DKG_DAEMON_URL` is shared across all team members.
+**Key Principle:** The `DKG_WM_AGENT_ID` identifies who created each memory entry. The `DKG_DAEMON_URL` is shared across all team members.
 
 ---
 
@@ -76,27 +76,32 @@ The core innovation of DKG Working Memory is **provenance tracking**. Every new 
 
 ### Basic Usage
 
-When recording a new finding, include the `derivedFrom` field with the hash of the parent finding:
+When recording a new finding, include the `derivedFrom` field with the URN of the parent artifact, creating an auditable research chain:
 
-```typescript
-// Agent Alpha records initial finding
-const findingAlpha = await client.createMemory({
-  type: "vulnerability-discovery",
-  content: "Reentrancy vulnerability in withdraw() function",
-  contract: "Vault.sol:234",
-  severity: "high",
-  agentId: "agent-alpha"
-});
-// Returns: { hash: "0xabc123...", timestamp: "2026-01-15T10:30:00Z" }
+```json
+// Agent Alpha records initial finding via capture_research_finding MCP tool
+{
+  "tool": "capture_research_finding",
+  "arguments": {
+    "content": "Reentrancy vulnerability in Vault.sol:withdraw() at line 234 — missing reentrancy guard allows recursive calls before balance update",
+    "type": "vulnerability_finding",
+    "title": "Reentrancy in Vault.withdraw()",
+    "sensitivity": "internal"
+  }
+}
+// Returns: { artifactId: "urn:dkg:wm:abc123...", contentHash: "sha256:...", success: true }
 
-// Agent Beta builds on Alpha's finding
-const findingBeta = await client.createMemory({
-  type: "exploit-poc",
-  content: "PoC demonstrating 50% fund drain via reentrancy",
-  derivedFrom: "0xabc123...",  // ← Links to Alpha's finding
-  contract: "Vault.sol:234",
-  agentId: "agent-beta"
-});
+// Agent Beta builds on Alpha's finding — derivedFrom creates the prov:wasDerivedFrom chain
+{
+  "tool": "capture_research_finding",
+  "arguments": {
+    "content": "PoC demonstrating 50% fund drain via reentrancy in Vault.withdraw(). forge test passes on mainnet fork block 21500000.",
+    "type": "proof_of_concept",
+    "title": "PoC: Vault.withdraw() reentrancy drain",
+    "derivedFrom": ["urn:dkg:wm:abc123..."],
+    "sensitivity": "confidential"
+  }
+}
 ```
 
 ### Provenance Chain Example
@@ -134,42 +139,40 @@ Agents need to discover existing findings before starting new work. The DKG prov
 
 Searches the agent's local working memory scope. Best for finding recent work by your team.
 
-```typescript
+```json
 // Find all findings related to a specific contract
-const results = await client.searchWorkingMemory({
-  query: "Vault.sol",
-  filters: {
-    type: "vulnerability-discovery",
-    since: "2026-01-01T00:00:00Z"
+{
+  "tool": "search_working_memory",
+  "arguments": {
+    "keyword": "Vault.sol",
+    "type": "vulnerability_finding",
+    "limit": 20
   }
-});
+}
 
-// Find findings derived from a specific parent
-const children = await client.searchWorkingMemory({
-  query: "",
-  filters: {
-    derivedFrom: "0xabc123..."
+// Find findings derived from a specific parent artifact
+{
+  "tool": "search_working_memory",
+  "arguments": {
+    "derivedFromId": "urn:dkg:wm:abc123...",
+    "limit": 50
   }
-});
+}
 ```
 
 ### `query_shared_memory`
 
-Queries the broader shared memory pool, including findings from other agent clusters that have been promoted. This is useful for:
+Queries the broader Shared Memory pool — findings from other agent clusters that have been promoted. Accepts a SPARQL query string against the shared `schema:DigitalDocument` graph.
 
-- Discovering similar vulnerabilities in other protocols
-- Finding patterns that might apply to your current target
-- Avoiding duplicate submissions
-
-```typescript
-// Search for similar reentrancy patterns across protocols
-const similar = await client.querySharedMemory({
-  query: "reentrancy withdraw() external payable",
-  filters: {
-    severity: "high",
-    type: "vulnerability-discovery"
+```json
+// Search for similar reentrancy patterns in Shared Memory
+{
+  "tool": "query_shared_memory",
+  "arguments": {
+    "query": "SELECT ?s ?title ?content WHERE { ?s schema:name ?title ; schema:text ?content . FILTER(CONTAINS(LCASE(?content), 'reentrancy')) } LIMIT 10",
+    "limit": 10
   }
-});
+}
 ```
 
 ### Search Best Practices
@@ -195,27 +198,38 @@ Promote a finding when:
 
 ### Promotion Process
 
-```typescript
-// Promote a verified finding to shared memory
-const sharedHash = await client.promoteToSharedMemory({
-  workingMemoryHash: "0xjkl012...",
-  visibility: "public",  // or "team-only" for internal findings
-  tags: ["reentrancy", "high-severity", "vault-protocol"]
-});
+```json
+// First advance status to ready_to_share
+{
+  "tool": "update_artifact_status",
+  "arguments": {
+    "artifactId": "urn:dkg:wm:jkl012...",
+    "status": "ready_to_share"
+  }
+}
+
+// Then promote — requires confirm: true and sensitivity must not be "confidential"
+{
+  "tool": "promote_to_shared_memory",
+  "arguments": {
+    "artifactId": "urn:dkg:wm:jkl012...",
+    "confirm": true
+  }
+}
 ```
 
 ### Shared Memory Query
 
-Once promoted, the finding becomes queryable by any agent with access to the shared memory pool:
+Once promoted, the finding becomes queryable by any agent with access to the shared memory pool via SPARQL:
 
-```typescript
-// Any agent can now discover this finding
-const discovery = await client.querySharedMemory({
-  query: "Vault.sol reentrancy",
-  filters: {
-    promotedAfter: "2026-01-15T00:00:00Z"
+```json
+{
+  "tool": "query_shared_memory",
+  "arguments": {
+    "query": "SELECT ?s ?title ?content WHERE { ?s schema:name ?title ; schema:text ?content . FILTER(CONTAINS(LCASE(?content), 'reentrancy')) } LIMIT 5",
+    "limit": 5
   }
-});
+}
 ```
 
 **Note:** Promotion is irreversible. Ensure findings are accurate and complete before promoting.
@@ -234,22 +248,28 @@ Not all work should be shared. The DKG supports sensitivity controls to keep int
 
 ### Setting Sensitivity Levels
 
-```typescript
-// Create a finding with restricted visibility
-const internalFinding = await client.createMemory({
-  type: "draft-analysis",
-  content: "Initial thoughts on potential issue — needs verification",
-  sensitivity: "internal",  // Only visible to this agent's working memory
-  agentId: "agent-alpha"
-});
+```json
+// Draft with internal sensitivity — blocked from promotion until reviewed
+{
+  "tool": "capture_research_finding",
+  "arguments": {
+    "content": "Initial thoughts on potential issue — needs PoC verification before sharing",
+    "type": "research_note",
+    "title": "Draft: possible price manipulation in Vault",
+    "sensitivity": "internal"
+  }
+}
 
-// Create a finding ready for broader review
-const publicFinding = await client.createMemory({
-  type: "vulnerability-discovery",
-  content: "Confirmed reentrancy in withdraw()",
-  sensitivity: "public",  // Visible to all agents after promotion
-  agentId: "agent-alpha"
-});
+// Confidential — promotion guard enforced: cannot be promoted to Shared Memory
+{
+  "tool": "capture_research_finding",
+  "arguments": {
+    "content": "Confirmed reentrancy via forge test on block 21500000. Attacker can drain 50% of TVL.",
+    "type": "vulnerability_finding",
+    "title": "CONFIRMED: Vault.withdraw() reentrancy",
+    "sensitivity": "confidential"
+  }
+}
 ```
 
 Valid sensitivity values: `'public' | 'internal' | 'confidential'`
@@ -269,50 +289,47 @@ Each agent should generate a `session-summary` at the end of every session. This
 
 ### Session Summary Format
 
-```typescript
-// At the end of each session
-await client.createMemory({
-  type: "session-summary",
-  content: {
-    sessionId: "2026-01-15-agent-alpha-001",
-    startTime: "2026-01-15T09:00:00Z",
-    endTime: "2026-01-15T17:30:00Z",
-    findingsCreated: ["0xabc123...", "0xdef456..."],
-    findingsUpdated: ["0xghi789..."],
-    findingsRead: ["0xjkl012..."],
-    keyDecisions: [
-      "Decided to focus on Vault.sol over Token.sol due to higher TVL",
-      "Confirmed reentrancy via fuzz test, proceeding to economic analysis"
-    ],
-    nextSteps: [
-      "Agent Beta to write formal PoC",
-      "Agent Gamma to calculate max economic impact"
-    ]
-  },
-  agentId: "agent-alpha"
-});
+Use `synthesize_session` at the end of each session to aggregate all artifacts into a structured `knowledge_synthesis` record:
+
+```json
+// At the end of each session — synthesize_session aggregates all artifacts automatically
+{
+  "tool": "synthesize_session",
+  "arguments": {
+    "sessionId": "2026-01-15-agent-alpha-001",
+    "title": "Vault.sol audit session — Agent Alpha recon"
+  }
+}
+// Returns: knowledge_synthesis artifact with type counts, status breakdown, consolidated content
+
+// Check session state before synthesizing
+{
+  "tool": "get_session_summary",
+  "arguments": {
+    "sessionId": "2026-01-15-agent-alpha-001"
+  }
+}
 ```
 
 ### Retrieving Session History
 
-```typescript
-// Get all sessions for an agent
-const sessions = await client.searchWorkingMemory({
-  query: "",
-  filters: {
-    type: "session-summary",
-    agentId: "agent-alpha"
+```json
+// Search for synthesis artifacts from past sessions
+{
+  "tool": "search_working_memory",
+  "arguments": {
+    "type": "knowledge_synthesis",
+    "limit": 10
   }
-});
+}
 
-// Get sessions in date range
-const recentSessions = await client.searchWorkingMemory({
-  query: "",
-  filters: {
-    type: "session-summary",
-    since: "2026-01-01T00:00:00Z"
+// Retrieve a specific synthesis artifact by ID
+{
+  "tool": "retrieve_artifact",
+  "arguments": {
+    "artifactId": "urn:dkg:wm:synthesis-abc123..."
   }
-});
+}
 ```
 
 **Why Session Summaries Matter:**
@@ -338,7 +355,7 @@ Below is a ready-to-use `CLAUDE.md` configuration snippet for a 3-agent security
 
 ## Shared Configuration
 
-All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
+All agents use the same DKG node URL with unique `DKG_WM_AGENT_ID` values:
 
 ```json
 {
@@ -349,9 +366,9 @@ All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
       "env": {
         "DKG_DAEMON_URL": "http://127.0.0.1:9200",
         "DKG_AUTH_TOKEN": "your-bearer-token",
-        "DKG_CONTEXT_GRAPH": "working-memory",
-        "DKG_AUTHOR_ID": "your-name",
-        "DKG_AGENT_ID": "agent-alpha"
+        "DKG_WM_CONTEXT_GRAPH": "working-memory",
+        "DKG_WM_AUTHOR_ID": "your-name",
+        "DKG_WM_AGENT_ID": "agent-alpha"
       }
     }
   }
@@ -371,9 +388,9 @@ All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
       "env": {
         "DKG_DAEMON_URL": "http://127.0.0.1:9200",
         "DKG_AUTH_TOKEN": "your-bearer-token",
-        "DKG_CONTEXT_GRAPH": "working-memory",
-        "DKG_AUTHOR_ID": "your-name",
-        "DKG_AGENT_ID": "agent-alpha"
+        "DKG_WM_CONTEXT_GRAPH": "working-memory",
+        "DKG_WM_AUTHOR_ID": "your-name",
+        "DKG_WM_AGENT_ID": "agent-alpha"
       }
     }
   }
@@ -391,9 +408,9 @@ All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
       "env": {
         "DKG_DAEMON_URL": "http://127.0.0.1:9200",
         "DKG_AUTH_TOKEN": "your-bearer-token",
-        "DKG_CONTEXT_GRAPH": "working-memory",
-        "DKG_AUTHOR_ID": "your-name",
-        "DKG_AGENT_ID": "agent-beta"
+        "DKG_WM_CONTEXT_GRAPH": "working-memory",
+        "DKG_WM_AUTHOR_ID": "your-name",
+        "DKG_WM_AGENT_ID": "agent-beta"
       }
     }
   }
@@ -411,9 +428,9 @@ All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
       "env": {
         "DKG_DAEMON_URL": "http://127.0.0.1:9200",
         "DKG_AUTH_TOKEN": "your-bearer-token",
-        "DKG_CONTEXT_GRAPH": "working-memory",
-        "DKG_AUTHOR_ID": "your-name",
-        "DKG_AGENT_ID": "agent-gamma"
+        "DKG_WM_CONTEXT_GRAPH": "working-memory",
+        "DKG_WM_AUTHOR_ID": "your-name",
+        "DKG_WM_AGENT_ID": "agent-gamma"
       }
     }
   }
@@ -430,14 +447,16 @@ All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
 
 ## Tools Available to Each Agent
 
-- `create_memory`: Record new findings with provenance
-- `search_working_memory`: Find team findings
-- `query_shared_memory`: Discover external findings
-- `promote_to_shared_memory`: Make findings public
-- `get_memory`: Retrieve specific finding by hash
-- `update_memory`: Amend existing findings
-- `create_session_summary`: End-of-session checkpoint
-- `query_provenance_chain`: Trace finding ancestry
+- `capture_research_finding`: Record new findings with provenance, derivedFrom, and sensitivity
+- `search_working_memory`: Find past artifacts by keyword, type, status, or provenance chain
+- `retrieve_artifact`: Retrieve full content of a specific artifact by URN
+- `update_artifact_status`: Advance artifact through trust gradient (draft → validated → ready_to_share)
+- `promote_to_shared_memory`: Move verified artifact to Shared Memory (requires `confirm: true`)
+- `synthesize_session`: Aggregate all session artifacts into a knowledge_synthesis record
+- `get_session_summary`: List artifacts in a session with type counts and status breakdown
+- `query_shared_memory`: SPARQL query against Shared Memory graph
+- `get_claim_review`: Generate schema.org ClaimReview JSON-LD from any artifact
+- `get_node_status`: Check DKG node health and connection latency
 ````
 
 ---
@@ -447,11 +466,11 @@ All agents use the same DKG node URL with unique `DKG_AGENT_ID` values:
 This guide covers the essential patterns for multi-agent collaboration using DKG Working Memory:
 
 1. **Problem:** Stateless sessions create data silos and lose provenance
-2. **Setup:** Shared DKG node URL (`DKG_DAEMON_URL`) with unique `DKG_AGENT_ID` per agent
+2. **Setup:** Shared DKG node URL (`DKG_DAEMON_URL`) with unique `DKG_WM_AGENT_ID` per agent
 3. **Provenance:** Use `derivedFrom` to chain findings into auditable research chains
 4. **Discovery:** Search working memory before starting new work
 5. **Promotion:** Move verified findings to shared memory for broader access
-6. **Sensitivity:** Control visibility with private/team/public scopes
+6. **Sensitivity:** Three-tier access control (`public` / `internal` / `confidential`) with promotion guard
 7. **Session Summaries:** Create checkpoints for continuity and handoffs
 8. **Configuration:** Ready-to-use CLAUDE.md snippet for 3-agent teams
 
