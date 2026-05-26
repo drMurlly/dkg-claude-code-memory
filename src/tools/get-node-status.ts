@@ -1,75 +1,43 @@
+import { Tool } from "../types/tool.js";
+import { DkgClient } from "../core/dkg-client.js";
+
 /**
- * get-node-status tool — checks if the DKG node is reachable.
+ * get_node_status — check DKG node health via DkgClient.getStatus()
  *
- * Takes no required parameters. Returns:
- *   - success: boolean
- *   - status: 'online' | 'offline'
- *   - nodeUrl: string
- *   - latencyMs: number
+ * Uses the DKG client's getStatus() method which verifies the DKG API
+ * actually responds (not just port-open check).
  */
+export const getNodeStatusTool: Tool = {
+  name: "get_node_status",
+  description: "Check the health and status of the connected DKG node",
+  inputSchema: {
+    type: "object" as const,
+    properties: {},
+    required: [],
+  },
 
-import type { ToolDeps, ToolResult } from './types.js';
-
-/**
- * Params for get-node-status — currently empty (no required params).
- */
-export interface GetNodeStatusParams {
-  // No required parameters
-}
-
-/**
- * Handle get-node-status tool invocation.
- */
-export async function handleGetNodeStatus(
-  _params: GetNodeStatusParams,
-  deps: ToolDeps,
-): Promise<ToolResult> {
-  const nodeUrl = deps.config.daemonUrl;
-  const start = Date.now();
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
-
-    const response = await fetch(nodeUrl, {
-      method: 'GET',
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    const latencyMs = Date.now() - start;
-
-    if (response.ok) {
+  async execute(deps: { client: DkgClient }) {
+    try {
+      const status = await deps.client.getStatus();
       return {
-        success: true,
-        message: `DKG node online at ${nodeUrl} (${latencyMs}ms)`,
-        status: 'online',
-        nodeUrl,
-        latencyMs,
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(status, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Node status check failed: ${message}`,
+          },
+        ],
+        isError: true,
       };
     }
-
-    // Non-2xx response — node responded but may be degraded
-    return {
-      success: true,
-      message: `DKG node responded with HTTP ${response.status} (${latencyMs}ms)`,
-      status: 'online',
-      nodeUrl,
-      latencyMs,
-      statusCode: response.status,
-    };
-  } catch (err: unknown) {
-    const latencyMs = Date.now() - start;
-    const msg = err instanceof Error ? err.message : String(err);
-
-    return {
-      success: true,
-      message: `DKG node unreachable at ${nodeUrl}: ${msg}`,
-      status: 'offline',
-      nodeUrl,
-      latencyMs,
-      error: msg,
-    };
-  }
-}
+  },
+};

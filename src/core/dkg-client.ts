@@ -265,6 +265,36 @@ export class DkgClient {
     });
   }
 
+  /**
+   * Fetch the sensitivity (schema:accessMode) of an artifact by its ID.
+   * Returns the sensitivity value ('public', 'internal', 'confidential') or null if not set.
+   * Uses a lightweight SPARQL query — only fetches the single predicate needed.
+   */
+  async getArtifactSensitivity(artifactId: string): Promise<string | null> {
+    const safeId = artifactId.replace(/[<>]/g, '');
+    const sparql = `
+      PREFIX schema: <https://schema.org/>
+      SELECT ?accessMode
+      WHERE {
+        <${safeId}> schema:accessMode ?accessMode
+      }
+    `.trim();
+
+    try {
+      const result = await this.querySparql(sparql, {
+        contextGraphId: undefined,
+        view: 'working-memory',
+      });
+      const bindings = (result as { results?: { bindings: Array<Record<string, { value: string }>> } })?.results?.bindings ?? [];
+      if (bindings.length > 0 && bindings[0].accessMode?.value) {
+        return bindings[0].accessMode.value;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async getStatus(): Promise<unknown> {
     return this.requestWithRetry<unknown>('GET', '/api/status');
   }

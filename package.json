@@ -12,7 +12,7 @@
     "postbuild": "node -e \"const fs=require('fs'); const f='dist/index.js'; const c=fs.readFileSync(f,'utf8'); if(!c.startsWith('#!')) fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);\"",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:live": "DKG_INTEGRATION_TEST=1 vitest run tests/integration",
+    "test:live": "DKG_INTEGRATION_TEST=1 vitest run --include='tests/live-integration.test.ts' --exclude=''",
     "prepublishOnly": "npm test && npm run build && npm audit --production"
   },
   "keywords": [

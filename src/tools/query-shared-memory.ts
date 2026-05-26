@@ -1,5 +1,8 @@
 /**
- * Query Shared Memory tool — search DigitalDocument/CreativeWork/Article artifacts via SPARQL.
+ * Query Shared Memory tool — search promoted artifacts by keyword.
+ *
+ * Uses SPARQL to match wm:WorkingMemoryArtifact shape with CONTAINS keyword filter
+ * over schema:name and schema:text. Mirrors the search.ts pattern.
  */
 
 import type { ToolDeps, ToolResult } from './types.js';
@@ -33,28 +36,24 @@ export async function handleQuerySharedMemory(
   const clampedLimit = Math.min(Math.max(1, limit), 100);
 
   const sparql = `
+    PREFIX wm: <https://ontology.origintrail.io/dkg/wm#>
     PREFIX schema: <https://schema.org/>
     PREFIX dkg: <https://ontology.origintrail.io/dkg/1.0#>
 
-    SELECT ?ual ?title ?snippet ?type
+    SELECT ?ual ?title ?snippet ?type ?status
     WHERE {
-      GRAPH ?g {
-        ?s dkg:ual ?ual .
-        OPTIONAL { ?s schema:name ?title . }
-        OPTIONAL { ?s schema:description ?snippet . }
-        OPTIONAL { ?s dkg:type ?type . }
-        FILTER(
-          CONTAINS(LCASE(?title), LCASE("${escapedQuery}")) ||
-          CONTAINS(LCASE(?snippet), LCASE("${escapedQuery}"))
-        )
-        FILTER(
-          ?type = "schema:DigitalDocument" ||
-          ?type = "schema:CreativeWork" ||
-          ?type = "schema:Article"
-        )
-      }
+      ?id a wm:WorkingMemoryArtifact ;
+          wm:artifactType ?type ;
+          wm:status ?status .
+      OPTIONAL { ?id schema:name ?title . }
+      OPTIONAL { ?id schema:text ?snippet . }
+      OPTIONAL { ?id wm:ual ?ual . }
+      FILTER(
+        CONTAINS(LCASE(?title), LCASE("${escapedQuery}")) ||
+        CONTAINS(LCASE(?snippet), LCASE("${escapedQuery}"))
+      )
     }
-    ORDER BY DESC(?s)
+    ORDER BY DESC(?id)
     LIMIT ${clampedLimit}
   `.trim();
 
@@ -82,6 +81,7 @@ export async function handleQuerySharedMemory(
         title: binding.title?.value ?? '(untitled)',
         snippet: binding.snippet?.value ?? '',
         type: binding.type?.value ?? 'unknown',
+        status: binding.status?.value ?? 'unknown',
       };
     });
 

@@ -31,6 +31,7 @@ export function makeMockClient(): Partial<DkgClient> {
     querySparql: vi.fn().mockResolvedValue({ result: { bindings: [] } }),
     getAssertionHistory: vi.fn().mockResolvedValue([]),
     promoteAssertion: vi.fn().mockResolvedValue(undefined),
+    getArtifactSensitivity: vi.fn().mockResolvedValue(null),
   };
 }
 

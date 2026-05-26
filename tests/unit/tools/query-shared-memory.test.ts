@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleQuerySharedMemory } from '../../../src/tools/query-shared-memory.js';
-import type { ToolDeps, QuerySharedMemoryParams } from '../../../src/tools/query-shared-memory.js';
+import type { ToolDeps } from '../../../src/tools/types.js';
 import type { DkgClient } from '../../../src/core/dkg-client.js';
 import type { DedupeStore } from '../../../src/core/dedupe-store.js';
 import { makeMockClient, makeMockDedupeStore, testConfig } from '../helpers.js';
@@ -65,7 +65,7 @@ describe('handleQuerySharedMemory', () => {
       expect(result.message).toBe('No shared memory entries found matching the query.');
     });
 
-    it('parses entries from bindings correctly', async () => {
+    it('parses entries from bindings correctly with wm:WorkingMemoryArtifact shape', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: {
           bindings: [
@@ -73,7 +73,8 @@ describe('handleQuerySharedMemory', () => {
               ual: { value: 'urn:dkg:ual:test1' },
               title: { value: 'Security Analysis Report' },
               snippet: { value: 'This document contains a security analysis of the protocol' },
-              type: { value: 'schema:DigitalDocument' },
+              type: { value: 'vulnerability_finding' },
+              status: { value: 'validated' },
             },
           ],
         },
@@ -87,7 +88,8 @@ describe('handleQuerySharedMemory', () => {
       expect(entry.ual).toBe('urn:dkg:ual:test1');
       expect(entry.title).toBe('Security Analysis Report');
       expect(entry.snippet).toBe('This document contains a security analysis of the protocol');
-      expect(entry.type).toBe('schema:DigitalDocument');
+      expect(entry.type).toBe('vulnerability_finding');
+      expect(entry.status).toBe('validated');
     });
 
     it('handles multiple bindings', async () => {
@@ -98,13 +100,15 @@ describe('handleQuerySharedMemory', () => {
               ual: { value: 'urn:dkg:ual:test1' },
               title: { value: 'Doc 1' },
               snippet: { value: 'First document' },
-              type: { value: 'schema:DigitalDocument' },
+              type: { value: 'research_note' },
+              status: { value: 'validated' },
             },
             {
               ual: { value: 'urn:dkg:ual:test2' },
               title: { value: 'Doc 2' },
               snippet: { value: 'Second document' },
-              type: { value: 'schema:CreativeWork' },
+              type: { value: 'code_analysis' },
+              status: { value: 'ready_to_share' },
             },
           ],
         },
@@ -120,8 +124,8 @@ describe('handleQuerySharedMemory', () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: {
           bindings: [
-            { ual: { value: 'ual:1' }, title: { value: 'A' }, snippet: { value: 'a' }, type: { value: 'schema:DigitalDocument' } },
-            { ual: { value: 'ual:2' }, title: { value: 'B' }, snippet: { value: 'b' }, type: { value: 'schema:CreativeWork' } },
+            { ual: { value: 'ual:1' }, title: { value: 'A' }, snippet: { value: 'a' }, type: { value: 'research_note' }, status: { value: 'validated' } },
+            { ual: { value: 'ual:2' }, title: { value: 'B' }, snippet: { value: 'b' }, type: { value: 'code_analysis' }, status: { value: 'ready_to_share' } },
           ],
         },
       });
@@ -178,16 +182,38 @@ describe('handleQuerySharedMemory', () => {
     });
   });
 
+  describe('SPARQL shape', () => {
+    it('uses wm:WorkingMemoryArtifact type pattern', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: { bindings: [] },
+      });
+
+      await handleQuerySharedMemory({ query: 'test' }, deps);
+
+      const sparqlQuery = (mockClient.querySparql as any).mock.calls[0][0];
+      expect(sparqlQuery).toContain('wm:WorkingMemoryArtifact');
+      expect(sparqlQuery).toContain('wm:artifactType');
+      expect(sparqlQuery).toContain('wm:status');
+      expect(sparqlQuery).toContain('schema:name');
+      expect(sparqlQuery).toContain('schema:text');
+      expect(sparqlQuery).toContain('wm:ual');
+      expect(sparqlQuery).not.toContain('dkg:ual');
+      expect(sparqlQuery).not.toContain('schema:DigitalDocument');
+      expect(sparqlQuery).not.toContain('schema:description');
+    });
+  });
+
   describe('edge cases', () => {
     it('handles entries with missing optional fields', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: {
           bindings: [
             {
-              ual: { value: 'urn:dkg:ual:test1' },
+              ual: null,
               title: null,
               snippet: null,
-              type: null,
+              type: { value: 'research_note' },
+              status: { value: 'draft' },
             },
           ],
         },
@@ -197,29 +223,11 @@ describe('handleQuerySharedMemory', () => {
       expect(result.success).toBe(true);
       expect(result.count).toBe(1);
       const entry = result.entries![0];
+      expect(entry.ual).toBe('unknown');
       expect(entry.title).toBe('(untitled)');
       expect(entry.snippet).toBe('');
-      expect(entry.type).toBe('unknown');
-    });
-
-    it('handles entries with missing ual', async () => {
-      mockClient.querySparql = vi.fn().mockResolvedValue({
-        results: {
-          bindings: [
-            {
-              ual: null,
-              title: { value: 'No UAL Doc' },
-              snippet: { value: 'A document without UAL' },
-              type: { value: 'schema:Article' },
-            },
-          ],
-        },
-      });
-
-      const result = await handleQuerySharedMemory({ query: 'test' }, deps);
-      expect(result.success).toBe(true);
-      expect(result.count).toBe(1);
-      expect(result.entries![0].ual).toBe('unknown');
+      expect(entry.type).toBe('research_note');
+      expect(entry.status).toBe('draft');
     });
 
     it('handles single result with correct grammar', async () => {
@@ -230,7 +238,8 @@ describe('handleQuerySharedMemory', () => {
               ual: { value: 'urn:dkg:ual:single' },
               title: { value: 'Single Doc' },
               snippet: { value: 'Just one result' },
-              type: { value: 'schema:DigitalDocument' },
+              type: { value: 'research_note' },
+              status: { value: 'validated' },
             },
           ],
         },

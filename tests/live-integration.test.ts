@@ -22,7 +22,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('captures a vulnerability_finding and returns a UAL', async () => {
     const { handleCapture } = await import('../src/tools/capture.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -38,8 +38,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleCapture(
       {
@@ -60,7 +60,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('search_working_memory retrieves the captured artifact', async () => {
     const { handleSearch } = await import('../src/tools/search.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -76,8 +76,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleSearch(
       { sessionId: 'live-test-session' },
@@ -93,7 +93,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
   it('update_artifact_status to validated persists', async () => {
     const { handleUpdateStatus } = await import('../src/tools/update-status.js');
     const { handleSearch } = await import('../src/tools/search.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -109,8 +109,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const updateResult = await handleUpdateStatus(
       { artifactId: capturedArtifactId, newStatus: 'validated' },
@@ -130,7 +130,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('get_session_summary lists artifacts from live-test-session', async () => {
     const { handleSessionSummary } = await import('../src/tools/session-summary.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -146,8 +146,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleSessionSummary(
       { sessionId: 'live-test-session' },
@@ -160,7 +160,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('synthesize_session creates a knowledge_synthesis artifact', async () => {
     const { handleSynthesize } = await import('../src/tools/synthesize.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -176,8 +176,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleSynthesize(
       { sessionId: 'live-test-session', title: 'Live Test Synthesis' },
@@ -191,7 +191,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('promote_to_shared_memory is blocked without confirm=true', async () => {
     const { handlePromote } = await import('../src/tools/promote.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -207,8 +207,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handlePromote(
       { artifactId: capturedArtifactId, confirm: false },
@@ -221,7 +221,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('promote_to_shared_memory succeeds with confirm=true', async () => {
     const { handlePromote } = await import('../src/tools/promote.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -237,8 +237,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handlePromote(
       { artifactId: capturedArtifactId, confirm: true },
@@ -250,7 +250,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('captures a research_note with subAgentId', async () => {
     const { handleCapture } = await import('../src/tools/capture.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -266,8 +266,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleCapture(
       {
@@ -287,7 +287,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('search filters by artifact type', async () => {
     const { handleSearch } = await import('../src/tools/search.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -303,8 +303,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleSearch(
       { sessionId: 'live-test-session', type: 'vulnerability_finding' },
@@ -318,7 +318,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
   it('captures multiple artifacts in same session', async () => {
     const { handleCapture } = await import('../src/tools/capture.js');
     const { handleSearch } = await import('../src/tools/search.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -334,8 +334,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result1 = await handleCapture(
       {
@@ -370,7 +370,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     const { handleCapture } = await import('../src/tools/capture.js');
     const { handleUpdateStatus } = await import('../src/tools/update-status.js');
     const { handleSearch } = await import('../src/tools/search.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -386,8 +386,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const captureResult = await handleCapture(
       {
@@ -420,7 +420,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('session summary includes all artifact types', async () => {
     const { handleSessionSummary } = await import('../src/tools/session-summary.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -436,8 +436,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleSessionSummary(
       { sessionId: 'live-test-session' },
@@ -451,7 +451,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
 
   it('search returns empty for non-existent session', async () => {
     const { handleSearch } = await import('../src/tools/search.js');
-    const { DkgWmClient } = await import('../src/core/dkg-client.js');
+    const { DkgClient } = await import('../src/core/dkg-client.js');
     const { DedupeStore } = await import('../src/core/dedupe-store.js');
 
     const config = {
@@ -467,8 +467,8 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
       dedupeEnabled: true,
     };
 
-    const client = new DkgWmClient(config);
-    const dedupeStore = new DedupeStore(config.stateDir);
+    const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
+    const dedupeStore = new DedupeStore(config);
 
     const result = await handleSearch(
       { sessionId: 'non-existent-session-xyz' },

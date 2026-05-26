@@ -1,6 +1,6 @@
 {
   "name": "dkg-claude-code-memory",
-  "description": "MCP server providing Claude Code agents with persistent, verifiable Working Memory on OriginTrail DKG v10. Captures research findings, vulnerability analyses, and code reviews with SHA-256 content-addressable IDs, PROV-O provenance chains, and multi-agent attribution — enabling cross-session retrieval, deduplication, and team knowledge sharing.",
+  "description": "MCP server providing Claude Code agents with persistent, verifiable Working Memory on OriginTrail DKG v10. Captures research findings, vulnerability analyses, and code reviews with SHA-256 content-addressable IDs, PROV-O provenance chains, and multi-agent attribution \u2014 enabling cross-session retrieval, deduplication, and team knowledge sharing.",
   "version": "1.0.0",
   "author": "drMurlly",
   "license": "Apache-2.0",
@@ -8,7 +8,10 @@
   "install": {
     "kind": "mcp",
     "command": "npx",
-    "args": ["-y", "dkg-claude-code-memory@latest"],
+    "args": [
+      "-y",
+      "dkg-claude-code-memory@latest"
+    ],
     "env": {
       "DKG_AUTH_TOKEN": {
         "description": "OriginTrail DKG authentication token",
@@ -41,7 +44,7 @@
     {
       "host": "DKG_DAEMON_URL",
       "description": "JSON-RPC calls to the OriginTrail DKG node for reading and writing knowledge assets",
-      "protocol": "https",
+      "protocol": "http/https (configurable)",
       "required": true
     }
   ],
@@ -65,7 +68,7 @@
     },
     {
       "name": "update_artifact_status",
-      "description": "Advance an artifact through the trust gradient: draft → needs_sources → review_needed → validated → ready_to_share (or deprecate/discard)"
+      "description": "Advance an artifact through the trust gradient: draft \u2192 needs_sources \u2192 review_needed \u2192 validated \u2192 ready_to_share (or deprecate/discard)"
     },
     {
       "name": "promote_to_shared_memory",
@@ -73,28 +76,37 @@
     },
     {
       "name": "synthesize_session",
-      "description": "Aggregate all artifacts from a session into a structured knowledge_synthesis artifact with type counts, status breakdown, and consolidated findings"
+      "description": "Synthesize session artifacts into a structured report with typeCounts"
     },
     {
       "name": "get_session_summary",
-      "description": "List all artifacts captured in the current or a named session with type counts and status breakdown — useful for checking session state before starting new work"
+      "description": "Get a summary of session artifacts with typeCounts"
     },
     {
       "name": "query_shared_memory",
-      "description": "Execute custom SPARQL queries against Shared Memory (schema:DigitalDocument artifacts) for complex provenance analysis and advanced graph queries"
+      "description": "Search Shared Memory by keyword \u2014 finds promoted artifacts matching the query in their title or text content"
     },
     {
       "name": "get_claim_review",
-      "description": "Generate a schema.org ClaimReview JSON-LD document for any stored artifact — enables direct consumption by the OriginTrail Oracle for Verified Memory integration"
+      "description": "Generate a schema.org ClaimReview JSON-LD document for any stored artifact \u2014 enables direct consumption by the OriginTrail Oracle for Verified Memory integration"
     },
     {
       "name": "get_node_status",
-      "description": "Check DKG node reachability and measure connection latency — useful for diagnosing connection issues before running tool operations"
+      "description": "Check DKG node reachability and measure connection latency \u2014 useful for diagnosing connection issues before running tool operations"
     }
   ],
   "testCount": 513,
   "coverage": "99.67% statements, 96.38% branches",
-  "tags": ["dkg", "memory", "provenance", "mcp", "working-memory", "multi-agent", "knowledge-graph", "origintrail"],
+  "tags": [
+    "dkg",
+    "memory",
+    "provenance",
+    "mcp",
+    "working-memory",
+    "multi-agent",
+    "knowledge-graph",
+    "origintrail"
+  ],
   "capabilities": {
     "deduplication": "SHA-256 content-addressable IDs prevent duplicate captures across sessions",
     "provenance": "PROV-O prov:wasDerivedFrom chains link artifacts across multi-agent hierarchies",
