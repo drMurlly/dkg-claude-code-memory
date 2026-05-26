@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`dkg-claude-code-memory` is an MCP server that gives Claude Code agents persistent, verifiable Working Memory on OriginTrail DKG v10. It is a **bounty submission** for the DKG v10 Round 1 integrations program (target: Flagship tier, 8,000–10,000 TRAC). The server exposes 8 tools over MCP stdio transport and writes knowledge artifacts to a DKG v10 node via its HTTP API.
+`dkg-claude-code-memory` is an MCP server that gives Claude Code agents persistent, verifiable Working Memory on OriginTrail DKG v10. It is a **bounty submission** for the DKG v10 Round 1 integrations program (target: Flagship tier, 8,000–10,000 TRAC). The server exposes 10 tools over MCP stdio transport and writes knowledge artifacts to a DKG v10 node via its HTTP API.
 
 ## Build & test commands
 
@@ -31,7 +31,7 @@ npx vitest run tests/unit/tools/capture.test.ts
 ```
 src/
 ├── index.ts              CLI entry point (shebang, calls startServer)
-├── server.ts             MCP server: registers all 8 tools + prompts handler
+├── server.ts             MCP server: registers all 10 tools + prompts handler
 ├── config.ts             Reads McpConfig from env vars; loads auth token from
 │                         DKG_AUTH_TOKEN or ~/.dkg/auth.token
 ├── types/
@@ -54,7 +54,9 @@ src/
     ├── promote.ts         Tool 5: Curator-gated promote to Shared Memory (confirm=true guard)
     ├── synthesize.ts      Tool 6: aggregate session artifacts into knowledge_synthesis
     ├── session-summary.ts Tool 7: list artifacts for a session with type counts
-    └── query-shared-memory.ts Tool 8: custom SPARQL queries against Shared Memory
+    ├── query-shared-memory.ts Tool 8: custom SPARQL queries against Shared Memory
+    ├── get-claim-review.ts   Tool 9: ClaimReview JSON-LD via toClaimReview() for Oracle integration
+    └── get-node-status.ts    Tool 10: DKG node health check and latency measurement
 ```
 
 The `server.ts` generates a per-process `SESSION_ID` (`ccm-<uuid8>`) that is injected as the default `sessionId` on every tool call, linking all artifacts from one Claude Code session.

@@ -1,5 +1,5 @@
 /**
- * MCP Server — Glue layer that registers all 8 tools with the MCP SDK
+ * MCP Server — Glue layer that registers all 10 tools with the MCP SDK
  * and connects via stdio transport.
  *
  * Exports `startServer()` for the CLI entry point (src/index.ts).
@@ -26,6 +26,8 @@ import { handlePromote } from './tools/promote.js';
 import { handleSynthesize } from './tools/synthesize.js';
 import { handleSessionSummary } from './tools/session-summary.js';
 import { handleQuerySharedMemory } from './tools/query-shared-memory.js';
+import { handleGetClaimReview } from './tools/get-claim-review.js';
+import { handleGetNodeStatus } from './tools/get-node-status.js';
 import { ARTIFACT_TYPES, ARTIFACT_STATUSES } from './types/artifact.js';
 import type {
   CaptureParams,
@@ -35,15 +37,13 @@ import type {
   PromoteParams,
   SynthesizeParams,
   SessionSummaryParams,
+  GetClaimReviewParams,
+  GetNodeStatusParams,
   ToolDeps,
 } from './tools/types.js';
 import type { QuerySharedMemoryParams } from './tools/query-shared-memory.js';
 
-// ── Session ID ────────────────────────────────────────────────────────────────
-// Unique per server process lifetime (one Claude Code session = one server process)
 const SESSION_ID = `ccm-${randomUUID().slice(0, 8)}`;
-
-// ── Tool Definitions ───────────────────────────────────────────────────────────
 
 const TOOL_DEFINITIONS = [
   {
@@ -118,7 +118,7 @@ const TOOL_DEFINITIONS = [
     name: 'update_artifact_status',
     description:
       'Update the status of an existing artifact. ' +
-      'Progression: draft → needs_sources → review_needed → validated → ready_to_share. ' +
+      'Progression: draft -> needs_sources -> review_needed -> validated -> ready_to_share. ' +
       'Also supports deprecation: deprecated, discarded.',
     inputSchema: {
       type: 'object',
@@ -138,7 +138,7 @@ const TOOL_DEFINITIONS = [
       type: 'object',
       properties: {
         artifactId: { type: 'string', description: 'The artifact ID to promote' },
-        confirm: { type: 'boolean', description: 'Must be true to proceed. User must explicitly confirm.' },
+        confirm: { type: 'boolean', description: 'User confirmation. Must be true.' },
       },
       required: ['artifactId', 'confirm'],
     },
@@ -146,49 +146,72 @@ const TOOL_DEFINITIONS = [
   {
     name: 'synthesize_session',
     description:
-      'Synthesize all artifacts from a session into a structured summary. ' +
-      'Call at the end of a complex research session to produce a consolidated report.',
+      'Synthesize all artifacts from a session into a structured summary artifact. ' +
+      'Use at the end of a complex research session to produce a consolidated report.',
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string', description: `Session ID to synthesize (defaults to current session: ${SESSION_ID})` },
-        title: { type: 'string', description: 'Custom title for the synthesis artifact (auto-generated if omitted)' },
+        sessionId: { type: 'string', description: 'Session ID to synthesize' },
+        title: { type: 'string', description: 'Optional title for the summary artifact' },
       },
+      required: ['sessionId'],
     },
   },
   {
     name: 'get_session_summary',
     description:
-      'Get a summary of what has been captured in the current or a past session. ' +
-      'Useful for checking session state before starting new work.',
+      'Get a summary of all artifacts captured in the current or a specified session. ' +
+      'Returns counts by type and status, plus a chronological list.',
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string', description: 'Session ID to summarize (defaults to current session)' },
+        sessionId: { type: 'string', description: 'Session ID (defaults to current session)' },
       },
     },
   },
   {
     name: 'query_shared_memory',
     description:
-      'Execute custom SPARQL queries against Shared Memory (schema:DigitalDocument artifacts). ' +
-      'Use for complex provenance analysis, tracing knowledge chains, or advanced graph queries. ' +
-      'Returns matching UALs with title, snippet, and capturedAt timestamp.',
+      'Execute a custom SPARQL query against Shared Memory. ' +
+      'Use for complex queries that go beyond the search tool capabilities, ' +
+      'such as tracing provenance chains or querying across multiple dimensions.',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'SPARQL FILTER clause or pattern to match (required)' },
-        limit: { type: 'number', description: 'Maximum results to return (default 10, max 100)' },
+        query: { type: 'string', description: 'SPARQL query to execute' },
+        limit: { type: 'number', description: 'Maximum results (default 50)' },
       },
       required: ['query'],
     },
   },
+  {
+    name: 'get_claim_review',
+    description:
+      'Retrieve an artifact and return its schema.org ClaimReview JSON-LD representation. ' +
+      'Useful for generating verifiable claim reviews for Oracle consumers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        artifactId: { type: 'string', description: 'The artifact ID to generate a ClaimReview for' },
+      },
+      required: ['artifactId'],
+    },
+  },
+  {
+    name: 'get_node_status',
+    description:
+      'Check if the DKG node is reachable. ' +
+      'Returns online/offline status, the node URL, and response latency in milliseconds. ' +
+      'Useful for verifying connectivity before calling other tools.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
-// ── System Prompt Builder ──────────────────────────────────────────────────────
-
 function buildSystemPrompt(sessionId: string): string {
-  return `You are integrated with DKG Research Memory. Your research artifacts persist across sessions through the DKG v10 graph.
+  return `You are an AI research agent integrated with DKG Research Memory. Your research artifacts persist across sessions through the DKG v10 graph.
 
 ## When to use each tool
 
@@ -213,7 +236,7 @@ Use when you need to:
 - Find related knowledge in the shared graph
 
 **update_artifact_status** — Promote findings as your confidence grows.
-Progression: draft → needs_sources → review_needed → validated → ready_to_share
+Progression: draft -> needs_sources -> review_needed -> validated -> ready_to_share
 
 **promote_to_shared_memory** — ONLY when the user explicitly asks to share findings with their team.
 You MUST ask for confirmation before calling this. Never call it autonomously.
@@ -221,6 +244,10 @@ You MUST ask for confirmation before calling this. Never call it autonomously.
 **synthesize_session** — At the end of a complex research sessions, synthesize all findings into a structured summary.
 
 **get_session_summary** — To see what has been captured in the current or a past session.
+
+**get_claim_review** — To generate a schema.org ClaimReview JSON-LD for an artifact. Useful for Oracle consumers.
+
+**get_node_status** — To check if the DKG node is reachable before calling other tools.
 
 ## Sub-agent attribution
 
@@ -231,8 +258,6 @@ If you are a sub-agent spawned by a parent Claude Code session, use:
 
 This creates a verifiable provenance chain across the full agent hierarchy.`;
 }
-
-// ── Tool Handler Router ────────────────────────────────────────────────────────
 
 async function routeToolCall(
   name: string,
@@ -256,27 +281,18 @@ async function routeToolCall(
       return await handleSessionSummary(params as unknown as SessionSummaryParams, deps);
     case 'query_shared_memory':
       return await handleQuerySharedMemory(params as unknown as QuerySharedMemoryParams, deps);
+    case 'get_claim_review':
+      return await handleGetClaimReview(params as unknown as GetClaimReviewParams, deps);
+    case 'get_node_status':
+      return await handleGetNodeStatus(params as unknown as GetNodeStatusParams, deps);
     default:
       return { success: false, message: `Unknown tool: ${name}` };
   }
 }
 
-// ── Main Entry ─────────────────────────────────────────────────────────────────
-
-/**
- * Start the MCP server.
- *
- * 1. Loads config (env vars + ~/.dkg/auth.token)
- * 2. Initializes shared dependencies (DkgClient, DedupeStore)
- * 3. Pre-creates the Context Graph on DKG (idempotent, non-blocking)
- * 4. Registers all 8 tools with the MCP SDK
- * 5. Registers a prompts/list handler returning the auto-capture system prompt
- * 6. Connects via stdio transport and waits
- */
 export async function startServer(): Promise<void> {
   const config = await loadMcpConfig();
 
-  // Initialize shared dependencies
   const client = new DkgClient({
     daemonUrl: config.daemonUrl,
     token: config.authToken,
@@ -287,19 +303,14 @@ export async function startServer(): Promise<void> {
 
   const deps: ToolDeps = { client, dedupeStore, config };
 
-  // Pre-create Context Graph (non-blocking — failure is non-fatal)
   client.ensureContextGraph(config.contextGraph, 'Claude Code Research Memory').catch(() => {
-    // Context graph creation failure is non-fatal; queries will still work
+    // non-fatal
   });
-
-  // ── MCP Server ───────────────────────────────────────────────────────────────
 
   const server = new Server(
     { name: 'dkg-claude-code-memory', version: '1.0.0' },
     { capabilities: { tools: {}, prompts: {} } },
   );
-
-  // ── Tools Handler ────────────────────────────────────────────────────────────
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: TOOL_DEFINITIONS,
@@ -312,8 +323,6 @@ export async function startServer(): Promise<void> {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     };
   });
-
-  // ── Prompts Handler (Auto-Capture System Prompt) ─────────────────────────────
 
   server.setRequestHandler(ListPromptsRequestSchema, async () => ({
     prompts: [
@@ -342,9 +351,6 @@ export async function startServer(): Promise<void> {
     };
   });
 
-  // ── Connect ──────────────────────────────────────────────────────────────────
-
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  // Server is now running. Stays alive until process is killed by MCP host.
 }

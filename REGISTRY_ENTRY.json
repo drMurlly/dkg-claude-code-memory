@@ -74,8 +74,18 @@
     {
       "name": "query_shared_memory",
       "description": "Execute custom SPARQL queries against Shared Memory (schema:DigitalDocument artifacts) for complex provenance analysis and advanced graph queries"
+    },
+    {
+      "name": "get_claim_review",
+      "description": "Generate a schema.org ClaimReview JSON-LD document for any stored artifact — enables direct consumption by the OriginTrail Oracle for Verified Memory integration"
+    },
+    {
+      "name": "get_node_status",
+      "description": "Check DKG node reachability and measure connection latency — useful for diagnosing connection issues before running tool operations"
     }
   ],
+  "testCount": 513,
+  "coverage": "99.67% statements, 96.38% branches",
   "tags": ["dkg", "memory", "provenance", "mcp", "working-memory", "multi-agent", "knowledge-graph", "origintrail"],
   "capabilities": {
     "deduplication": "SHA-256 content-addressable IDs prevent duplicate captures across sessions",

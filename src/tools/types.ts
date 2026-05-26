@@ -96,3 +96,18 @@ export interface SynthesizeParams {
 export interface SessionSummaryParams {
   sessionId?: string;
 }
+
+/**
+ * Parameters for get_claim_review tool.
+ */
+export interface GetClaimReviewParams {
+  artifactId: string;
+}
+
+/**
+ * Parameters for get_node_status tool.
+ * Currently takes no required parameters.
+ */
+export interface GetNodeStatusParams {
+  // No required parameters
+}

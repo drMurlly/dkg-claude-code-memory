@@ -1,5 +1,7 @@
 # dkg-claude-code-memory
 
+[![CI](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml)
+
 An MCP server that gives Claude Code agents persistent, verifiable Working Memory on [OriginTrail DKG v10](https://origintrail.io). Every research finding, vulnerability analysis, code review, or decision a Claude Code agent produces is deposited into DKG Working Memory with cryptographic provenance — and can be retrieved, updated, and promoted toward Shared Memory across sessions and sub-agents.
 
 Built for the [DKG v10 Round 1 Integrations Bounty](https://docs.origintrail.io/origintrail-v9-v10/origintrail-dkg-v10-bounty-program) — theme: *LLM-Wiki & Autoresearch Agents*.
@@ -32,6 +34,8 @@ Claude Code sessions are stateless by default. Work disappears when the session 
 | `synthesize_session` | Aggregate all artifacts from a session into a structured knowledge_synthesis artifact |
 | `get_session_summary` | List all artifacts from a session with type counts and status breakdown |
 | `query_shared_memory` | Query team-shared artifacts across peer sessions for collaborative research |
+| `get_claim_review` | Generate a schema.org ClaimReview JSON-LD for an artifact — enables OriginTrail Oracle integration |
+| `get_node_status` | Check DKG node reachability and measure latency |
 
 ---
 
