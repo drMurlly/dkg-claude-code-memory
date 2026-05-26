@@ -60,21 +60,11 @@ shared-memory index is fully synced.
 
 ```json
 {
-  "status": "ok",
-  "node_id": "dkg-node-prod-03",
-  "version": "0.9.4",
-  "uptime_seconds": 432871,
-  "shared_memory": {
-    "artifact_count": 1847,
-    "index_lag_seconds": 0,
-    "last_sync": "2026-05-26T08:01:13Z"
-  },
-  "working_memory": {
-    "active_sessions": 3,
-    "artifact_count": 41
-  },
-  "storage_backend": "neo4j+redis",
-  "message": "Node healthy. Shared memory index is current."
+  "success": true,
+  "message": "DKG node online at http://127.0.0.1:9200 (42ms)",
+  "status": "online",
+  "nodeUrl": "http://127.0.0.1:9200",
+  "latencyMs": 42
 }
 ```
 
@@ -95,11 +85,11 @@ without bounding the index against the declared allocation size.
   "tool": "capture_research_finding",
   "params": {
     "content": "In fd_shred_parse.c, function fd_shred_merkle_parse() at approx line 387, the loop\n`for( ulong i=0; i<hdr->data_cnt; i++ ) merkle[i] = ...`\ncopies the Merkle proof hashes from the wire packet into a stack buffer declared as\n`uchar merkle[FD_SHRED_MERKLE_PROOF_DEPTH_MAX][FD_SHRED_MERKLE_NODE_SZ]`.\nFD_SHRED_MERKLE_PROOF_DEPTH_MAX is 20. The peer-controlled field `hdr->data_cnt` is a\nuint16_t, so values 21..65535 will write past the end of the stack buffer.\nNo bounds check on `hdr->data_cnt` precedes the loop.",
-    "type": "observation",
+    "type": "research_note",
     "title": "fd_shred_merkle_parse: missing bounds check on hdr->data_cnt (OOB stack write)",
     "status": "draft",
     "sensitivity": "confidential",
-    "source": "fd_shred_parse.c:387 (commit 2f4625e3)",
+    "source": "tool",
     "sessionId": "fd-audit-2026-05-26-001",
     "agentRole": "auditor"
   }
@@ -110,18 +100,16 @@ without bounding the index against the declared allocation size.
 
 ```json
 {
-  "artifactId": "art-fd-0001",
+  "success": true,
+  "message": "Artifact captured successfully",
+  "artifactId": "urn:dkg:wm:7f3a2b1c9d0e4f56",
+  "ual": "<dkg-node-ual>",
   "status": "draft",
-  "type": "observation",
-  "title": "fd_shred_merkle_parse: missing bounds check on hdr->data_cnt (OOB stack write)",
-  "sensitivity": "confidential",
-  "sessionId": "fd-audit-2026-05-26-001",
-  "createdAt": "2026-05-26T08:04:31Z",
-  "message": "Artifact created in working memory."
+  "contentHash": "sha256:7f3a2b1c9d0e4f56a2b3c4d5e6f70819..."
 }
 ```
 
-**Trust gradient position:** `draft` — raw observation, not yet reviewed.
+**Trust gradient position:** `draft` — raw observation, not yet reviewed. (`status` is auto-classified from the content unless you pass an explicit `status`.)
 
 ---
 
@@ -137,11 +125,11 @@ of the call to `fd_shred_merkle_parse`.
   "tool": "capture_research_finding",
   "params": {
     "content": "Traced all callers of fd_shred_merkle_parse() in fd_shred.c. The call sites are:\n  1. fd_shred_parse_data() at fd_shred.c:621\n  2. fd_shred_parse_code() at fd_shred.c:694\nIn both callers, `hdr` is a direct cast of the incoming UDP payload:\n  `fd_shred_t const * hdr = (fd_shred_t const *)buf;`\nNo validation of `hdr->data_cnt` vs FD_SHRED_MERKLE_PROOF_DEPTH_MAX occurs in either\ncaller or in any function on the call stack between packet receipt and the parse.\nThe field is fully attacker-controlled over the network.",
-    "type": "observation",
+    "type": "research_note",
     "title": "fd_shred_merkle_parse callers pass raw peer data without sanitising data_cnt",
     "status": "draft",
     "sensitivity": "confidential",
-    "source": "fd_shred.c:621,694 (commit 2f4625e3)",
+    "source": "tool",
     "sessionId": "fd-audit-2026-05-26-001",
     "agentRole": "auditor"
   }
@@ -152,20 +140,18 @@ of the call to `fd_shred_merkle_parse`.
 
 ```json
 {
-  "artifactId": "art-fd-0002",
+  "success": true,
+  "message": "Artifact captured successfully",
+  "artifactId": "urn:dkg:wm:a17b93f0c2e4d518",
+  "ual": "<dkg-node-ual>",
   "status": "draft",
-  "type": "observation",
-  "title": "fd_shred_merkle_parse callers pass raw peer data without sanitising data_cnt",
-  "sensitivity": "confidential",
-  "sessionId": "fd-audit-2026-05-26-001",
-  "createdAt": "2026-05-26T08:09:17Z",
-  "message": "Artifact created in working memory."
+  "contentHash": "sha256:a17b93f0c2e4d518b3c4d5e6f7081920..."
 }
 ```
 
 ---
 
-## Step 3 — Capture Vulnerability Hypothesis (status: `draft`, derivedFrom art-fd-0001 + art-fd-0002)
+## Step 3 — Capture Vulnerability Hypothesis (status: `draft`, derivedFrom urn:dkg:wm:7f3a2b1c9d0e4f56 + urn:dkg:wm:a17b93f0c2e4d518)
 
 With both observations captured, drMurlly writes the formal vulnerability
 hypothesis and links it to its two source observations via `derivedFrom`.
@@ -177,11 +163,11 @@ hypothesis and links it to its two source observations via `derivedFrom`.
   "tool": "capture_research_finding",
   "params": {
     "content": "VULNERABILITY HYPOTHESIS\n\nTitle: OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt\n\nRoot cause:\n  fd_shred_merkle_parse() iterates `hdr->data_cnt` times writing 32-byte Merkle\n  nodes into a stack buffer of fixed depth FD_SHRED_MERKLE_PROOF_DEPTH_MAX (20).\n  Because `hdr->data_cnt` is a uint16_t read directly from a peer-supplied UDP\n  datagram with no prior bounds check, an attacker can supply data_cnt=255 and\n  cause 235 * 32 = 7520 bytes of controlled stack overwrite.\n\nAttacker model:\n  Any peer on the Turbine gossip network that can send a crafted shred packet\n  to a Firedancer validator's shred-receive port. No authentication required;\n  Turbine shreds are unauthenticated at the network layer before parsing.\n\nImpact (preconditions met):\n  Stack corruption in the shred receive thread. Depending on ASLR / stack-canary\n  configuration of the production build this may be:\n    - Validator crash / process death (DoS, loss of stake rewards) — HIGH\n    - Stack-canary bypass + RIP control if canaries are absent / weak — CRITICAL\n  Conservative severity: HIGH (crash). Escalation path to CRITICAL present.\n\nAffected harness: shred_parse (contest scope confirmed).\nAffected file: fd_shred_parse.c:387\nContest commit: 2f4625e3",
-    "type": "vulnerability",
+    "type": "vulnerability_finding",
     "title": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
     "status": "draft",
     "sensitivity": "confidential",
-    "derivedFrom": ["art-fd-0001", "art-fd-0002"],
+    "derivedFrom": ["urn:dkg:wm:7f3a2b1c9d0e4f56", "urn:dkg:wm:a17b93f0c2e4d518"],
     "sessionId": "fd-audit-2026-05-26-001",
     "agentRole": "auditor"
   }
@@ -192,23 +178,23 @@ hypothesis and links it to its two source observations via `derivedFrom`.
 
 ```json
 {
-  "artifactId": "art-fd-0003",
+  "success": true,
+  "message": "Artifact captured successfully",
+  "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69",
+  "ual": "<dkg-node-ual>",
   "status": "draft",
-  "type": "vulnerability",
-  "title": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
-  "sensitivity": "confidential",
-  "derivedFrom": ["art-fd-0001", "art-fd-0002"],
-  "sessionId": "fd-audit-2026-05-26-001",
-  "createdAt": "2026-05-26T08:18:44Z",
-  "message": "Artifact created. Provenance edges registered: art-fd-0003 → art-fd-0001, art-fd-0003 → art-fd-0002."
+  "contentHash": "sha256:c4e8d2f01a3b5c69d4e5f60718293a4b...",
+  "derivedFrom": ["urn:dkg:wm:7f3a2b1c9d0e4f56", "urn:dkg:wm:a17b93f0c2e4d518"]
 }
 ```
 
+The two `derivedFrom` URNs are written as `prov:wasDerivedFrom` quads on the new artifact, forming the provenance edges shown below.
+
 **Provenance chain so far:**
 ```
-art-fd-0001 (observation)  ─┐
-                             ├─derives→  art-fd-0003 (vulnerability, draft)
-art-fd-0002 (observation)  ─┘
+urn:dkg:wm:7f3a2b1c9d0e4f56 (research_note)  ─┐
+                                                ├─derives→  urn:dkg:wm:c4e8d2f01a3b5c69 (vulnerability_finding, draft)
+urn:dkg:wm:a17b93f0c2e4d518 (research_note)  ─┘
 ```
 
 ---
@@ -225,7 +211,7 @@ OOB has already been captured in this session or promoted to shared memory.
   "tool": "search_working_memory",
   "params": {
     "keyword": "shred parse OOB",
-    "type": "vulnerability",
+    "type": "vulnerability_finding",
     "sessionId": "fd-audit-2026-05-26-001",
     "limit": 10
   }
@@ -236,19 +222,21 @@ OOB has already been captured in this session or promoted to shared memory.
 
 ```json
 {
-  "results": [
+  "success": true,
+  "message": "Found 1 artifacts",
+  "count": 1,
+  "artifacts": [
     {
-      "artifactId": "art-fd-0003",
-      "title": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
-      "type": "vulnerability",
+      "id": "urn:dkg:wm:c4e8d2f01a3b5c69",
+      "name": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
+      "text": "VULNERABILITY HYPOTHESIS\n\nTitle: OOB stack write in fd_shred_merkle_parse...",
+      "type": "vulnerability_finding",
       "status": "draft",
-      "sensitivity": "confidential",
-      "createdAt": "2026-05-26T08:18:44Z",
-      "matchedOn": ["keyword: shred", "keyword: OOB", "type: vulnerability"]
+      "contentHash": "sha256:c4e8d2f01a3b5c69d4e5f60718293a4b...",
+      "capturedAt": "2026-05-26T08:18:44.000Z",
+      "sessionId": "fd-audit-2026-05-26-001"
     }
-  ],
-  "total": 1,
-  "sessionId": "fd-audit-2026-05-26-001"
+  ]
 }
 ```
 
@@ -271,33 +259,30 @@ Firedancer shred-parser findings from other sessions.
 
 ```json
 {
-  "results": [
+  "success": true,
+  "message": "Found 1 shared memory entry",
+  "count": 1,
+  "entries": [
     {
-      "artifactId": "shared-firedancer-0041",
-      "title": "fd_shred_parse: integer truncation in code_cnt field (low severity, mitigated)",
-      "type": "vulnerability",
-      "status": "mitigated",
-      "sensitivity": "public",
-      "similarity": 0.61,
-      "promotedAt": "2026-04-15T11:22:00Z",
-      "summary": "code_cnt truncated to uint8_t before use; max overread 1 entry only. Patched in commit a3f91b2c."
+      "ual": "did:dkg:otp/0x5a7b9c3e1f2d4a8b/1/1",
+      "title": "fd_shred_parse: integer truncation in code_cnt field (low severity, validated)",
+      "snippet": "code_cnt truncated to uint8_t before use; max overread 1 entry only. Patched in commit a3f91b2c.",
+      "type": "schema:DigitalDocument"
     }
-  ],
-  "total": 1,
-  "query": "Firedancer shred parse out-of-bounds stack buffer overflow data_cnt"
+  ]
 }
 ```
 
 **Interpretation:** The only related shared-memory artifact covers a previously
-mitigated, low-impact `code_cnt` truncation — not `data_cnt`, and not a write.
+patched, low-impact `code_cnt` truncation — not `data_cnt`, and not a write.
 The current finding is novel.
 
 ---
 
 ## Step 5 — Retrieve a Full Artifact to Verify Wording
 
-drMurlly retrieves `art-fd-0001` in full to double-check the file/line reference
-before writing the PoC.
+drMurlly retrieves the first observation artifact in full to double-check the
+file/line reference before writing the PoC.
 
 ### Tool call
 
@@ -305,25 +290,33 @@ before writing the PoC.
 {
   "tool": "retrieve_artifact",
   "params": {
-    "artifactId": "art-fd-0001"
+    "artifactId": "urn:dkg:wm:7f3a2b1c9d0e4f56"
   }
 }
 ```
 
 ### Response
 
+The artifact is returned as a flat map keyed by the local RDF predicate names
+(`artifactType`, `name`, `text`, `status`, `accessMode`, `capturedAt`, …):
+
 ```json
 {
-  "artifactId": "art-fd-0001",
-  "type": "observation",
-  "title": "fd_shred_merkle_parse: missing bounds check on hdr->data_cnt (OOB stack write)",
-  "status": "draft",
-  "sensitivity": "confidential",
-  "source": "fd_shred_parse.c:387 (commit 2f4625e3)",
-  "sessionId": "fd-audit-2026-05-26-001",
-  "agentRole": "auditor",
-  "createdAt": "2026-05-26T08:04:31Z",
-  "content": "In fd_shred_parse.c, function fd_shred_merkle_parse() at approx line 387, the loop\n`for( ulong i=0; i<hdr->data_cnt; i++ ) merkle[i] = ...`\ncopies the Merkle proof hashes from the wire packet into a stack buffer declared as\n`uchar merkle[FD_SHRED_MERKLE_PROOF_DEPTH_MAX][FD_SHRED_MERKLE_NODE_SZ]`.\nFD_SHRED_MERKLE_PROOF_DEPTH_MAX is 20. The peer-controlled field `hdr->data_cnt` is a\nuint16_t, so values 21..65535 will write past the end of the stack buffer.\nNo bounds check on `hdr->data_cnt` precedes the loop."
+  "success": true,
+  "message": "Artifact retrieved successfully",
+  "artifact": {
+    "artifactType": "research_note",
+    "name": "fd_shred_merkle_parse: missing bounds check on hdr->data_cnt (OOB stack write)",
+    "text": "In fd_shred_parse.c, function fd_shred_merkle_parse() at approx line 387, the loop\n`for( ulong i=0; i<hdr->data_cnt; i++ ) merkle[i] = ...`\ncopies the Merkle proof hashes from the wire packet into a stack buffer declared as\n`uchar merkle[FD_SHRED_MERKLE_PROOF_DEPTH_MAX][FD_SHRED_MERKLE_NODE_SZ]`.\nFD_SHRED_MERKLE_PROOF_DEPTH_MAX is 20. The peer-controlled field `hdr->data_cnt` is a\nuint16_t, so values 21..65535 will write past the end of the stack buffer.\nNo bounds check on `hdr->data_cnt` precedes the loop.",
+    "status": "draft",
+    "accessMode": "confidential",
+    "contentHash": "sha256:7f3a2b1c9d0e4f56a2b3c4d5e6f70819...",
+    "source": "tool",
+    "sessionId": "fd-audit-2026-05-26-001",
+    "agentRole": "auditor",
+    "agentFramework": "claude-code",
+    "capturedAt": "2026-05-26T08:04:31.000Z"
+  }
 }
 ```
 
@@ -331,7 +324,7 @@ File/line confirmed correct. Proceed to PoC.
 
 ---
 
-## Step 6 — Capture PoC Harness Artifact (status: `draft`, derivedFrom art-fd-0003)
+## Step 6 — Capture PoC Harness Artifact (status: `draft`, derivedFrom urn:dkg:wm:c4e8d2f01a3b5c69)
 
 drMurlly writes a minimal fuzzer seed / harness stub that exercises the
 vulnerable path through the `shred_parse` contest harness.
@@ -343,11 +336,11 @@ vulnerable path through the `shred_parse` contest harness.
   "tool": "capture_research_finding",
   "params": {
     "content": "/* PoC harness — fd_shred_merkle_parse OOB stack write\n * Contest harness: shred_parse\n * Build: make -C src/disco/shred run_shred_parse_fuzzer\n *\n * Craft a data shred with data_cnt = 0x00FF (255).\n * Fields that must be valid to reach fd_shred_merkle_parse:\n *   - variant byte: FD_SHRED_TYPE_MERKLE_DATA (0xA0)\n *   - sz: sizeof(fd_shred_t) + 255 * FD_SHRED_MERKLE_NODE_SZ (255*32 = 8160 bytes)\n *   - The first sizeof(fd_shred_t) bytes = valid shred header; data_cnt = 0x00FF\n *   - Remaining 8160 bytes = 0x41 (filler), filling the Merkle proof slots\n *\n * Expected outcome (ASAN build):\n *   ==ERROR: AddressSanitizer: stack-buffer-overflow\n *   WRITE of size 32 at 0x... T0 pc 0x... bp 0x... sp 0x...\n *   #0 fd_shred_merkle_parse  fd_shred_parse.c:387\n *   #1 fd_shred_parse_data    fd_shred.c:621\n *\n * Seed file layout (hex):\n *   [shred header 88 bytes, data_cnt=0x00FF at offset 6]\n *   [8160 bytes of 0x41]\n */\n\n#include <stdint.h>\n#include <string.h>\n\nvoid build_poc_seed( uint8_t * buf, size_t * out_len ) {\n  memset( buf, 0, 88 + 8160 );\n  buf[0]  = 0xA0;          /* variant: MERKLE_DATA        */\n  buf[4]  = 0x00;          /* slot lo                     */\n  buf[5]  = 0x00;          /* slot hi                     */\n  buf[6]  = 0xFF;          /* data_cnt lo — 255           */\n  buf[7]  = 0x00;          /* data_cnt hi                 */\n  /* pad rest of header to 88 bytes, leave as zero         */\n  memset( buf + 88, 0x41, 8160 ); /* Merkle node filler   */\n  *out_len = 88 + 8160;\n}",
-    "type": "poc",
+    "type": "code_analysis",
     "title": "PoC seed: fd_shred_merkle_parse OOB write — data_cnt=255 triggers stack overflow",
     "status": "draft",
     "sensitivity": "confidential",
-    "derivedFrom": ["art-fd-0003"],
+    "derivedFrom": ["urn:dkg:wm:c4e8d2f01a3b5c69"],
     "sessionId": "fd-audit-2026-05-26-001",
     "agentRole": "auditor"
   }
@@ -358,28 +351,26 @@ vulnerable path through the `shred_parse` contest harness.
 
 ```json
 {
-  "artifactId": "art-fd-0004",
+  "success": true,
+  "message": "Artifact captured successfully",
+  "artifactId": "urn:dkg:wm:e5f1a3b7c2d08e94",
+  "ual": "<dkg-node-ual>",
   "status": "draft",
-  "type": "poc",
-  "title": "PoC seed: fd_shred_merkle_parse OOB write — data_cnt=255 triggers stack overflow",
-  "sensitivity": "confidential",
-  "derivedFrom": ["art-fd-0003"],
-  "sessionId": "fd-audit-2026-05-26-001",
-  "createdAt": "2026-05-26T08:31:09Z",
-  "message": "Artifact created. Provenance edge: art-fd-0004 → art-fd-0003."
+  "contentHash": "sha256:e5f1a3b7c2d08e94f5061728394a5b6c...",
+  "derivedFrom": ["urn:dkg:wm:c4e8d2f01a3b5c69"]
 }
 ```
 
 **Full provenance chain:**
 ```
-art-fd-0001 (observation)  ─┐
-                             ├─derives→  art-fd-0003 (vulnerability) ─derives→  art-fd-0004 (poc)
-art-fd-0002 (observation)  ─┘
+urn:dkg:wm:7f3a2b1c9d0e4f56 (research_note)  ─┐
+                                                ├─derives→  urn:dkg:wm:c4e8d2f01a3b5c69 (vulnerability_finding) ─derives→  urn:dkg:wm:e5f1a3b7c2d08e94 (code_analysis)
+urn:dkg:wm:a17b93f0c2e4d518 (research_note)  ─┘
 ```
 
 ---
 
-## Step 7 — Capture Fix Recommendation (status: `draft`, derivedFrom art-fd-0003)
+## Step 7 — Capture Fix Recommendation (status: `draft`, derivedFrom urn:dkg:wm:c4e8d2f01a3b5c69)
 
 Alongside the PoC, capture a fix recommendation so the ClaimReview can include
 it without needing to regenerate it later.
@@ -391,11 +382,11 @@ it without needing to regenerate it later.
   "tool": "capture_research_finding",
   "params": {
     "content": "FIX RECOMMENDATION\n\nAdd a bounds check on `hdr->data_cnt` before the Merkle-copy loop in\nfd_shred_merkle_parse(). Minimal patch:\n\n  // Before the loop at fd_shred_parse.c:385\n  if( FD_UNLIKELY( hdr->data_cnt > FD_SHRED_MERKLE_PROOF_DEPTH_MAX ) )\n    return FD_SHRED_PARSE_ERR_DATA_CNT;\n\nAlternatively, clamp and treat excess depth as a parse error:\n  ulong depth = fd_ulong_min( hdr->data_cnt, FD_SHRED_MERKLE_PROOF_DEPTH_MAX );\n  for( ulong i=0; i<depth; i++ ) merkle[i] = ...;\n  if( hdr->data_cnt != depth ) return FD_SHRED_PARSE_ERR_DATA_CNT;\n\nThe early-return approach is preferred: a shred with more Merkle nodes than the\nmaximum depth is definitionally malformed and should not be accepted.\n\nNote: the fix should be applied to fd_shred_merkle_parse() regardless of call\nsite — callers should not be expected to pre-validate internal size fields.",
-    "type": "fix_recommendation",
+    "type": "audit_note",
     "title": "Fix: add data_cnt bounds check in fd_shred_merkle_parse before Merkle copy loop",
     "status": "draft",
     "sensitivity": "confidential",
-    "derivedFrom": ["art-fd-0003"],
+    "derivedFrom": ["urn:dkg:wm:c4e8d2f01a3b5c69"],
     "sessionId": "fd-audit-2026-05-26-001",
     "agentRole": "auditor"
   }
@@ -406,15 +397,13 @@ it without needing to regenerate it later.
 
 ```json
 {
-  "artifactId": "art-fd-0005",
+  "success": true,
+  "message": "Artifact captured successfully",
+  "artifactId": "urn:dkg:wm:b8d3e7a14f2c0951",
+  "ual": "<dkg-node-ual>",
   "status": "draft",
-  "type": "fix_recommendation",
-  "title": "Fix: add data_cnt bounds check in fd_shred_merkle_parse before Merkle copy loop",
-  "sensitivity": "confidential",
-  "derivedFrom": ["art-fd-0003"],
-  "sessionId": "fd-audit-2026-05-26-001",
-  "createdAt": "2026-05-26T08:37:52Z",
-  "message": "Artifact created. Provenance edge: art-fd-0005 → art-fd-0003."
+  "contentHash": "sha256:b8d3e7a14f2c0951061728394a5b6c7d...",
+  "derivedFrom": ["urn:dkg:wm:c4e8d2f01a3b5c69"]
 }
 ```
 
@@ -422,9 +411,9 @@ it without needing to regenerate it later.
 
 ## Step 8 — Advance Trust Gradient: `draft` → `validated`
 
-drMurlly has manually reproduced the ASAN crash with the seed from `art-fd-0004`
-against the contest harness. The finding is now validated. Advance the core
-vulnerability artifact to `validated`.
+drMurlly has manually reproduced the ASAN crash with the seed from
+`urn:dkg:wm:e5f1a3b7c2d08e94` (the PoC artifact) against the contest harness.
+The finding is now validated. Advance the core vulnerability artifact to `validated`.
 
 ### Tool call
 
@@ -432,7 +421,7 @@ vulnerability artifact to `validated`.
 {
   "tool": "update_artifact_status",
   "params": {
-    "artifactId": "art-fd-0003",
+    "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69",
     "newStatus": "validated"
   }
 }
@@ -442,11 +431,11 @@ vulnerability artifact to `validated`.
 
 ```json
 {
-  "artifactId": "art-fd-0003",
-  "previousStatus": "draft",
+  "success": true,
+  "message": "Status updated to validated",
+  "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69",
   "newStatus": "validated",
-  "updatedAt": "2026-05-26T09:14:03Z",
-  "message": "Status updated. Artifact is now eligible for promotion review."
+  "modifiedAt": "2026-05-26T09:14:03.000Z"
 }
 ```
 
@@ -458,7 +447,7 @@ Also advance the PoC and fix recommendation:
 {
   "tool": "update_artifact_status",
   "params": {
-    "artifactId": "art-fd-0004",
+    "artifactId": "urn:dkg:wm:e5f1a3b7c2d08e94",
     "newStatus": "validated"
   }
 }
@@ -468,11 +457,11 @@ Also advance the PoC and fix recommendation:
 
 ```json
 {
-  "artifactId": "art-fd-0004",
-  "previousStatus": "draft",
+  "success": true,
+  "message": "Status updated to validated",
+  "artifactId": "urn:dkg:wm:e5f1a3b7c2d08e94",
   "newStatus": "validated",
-  "updatedAt": "2026-05-26T09:14:21Z",
-  "message": "Status updated."
+  "modifiedAt": "2026-05-26T09:14:21.000Z"
 }
 ```
 
@@ -482,7 +471,7 @@ Also advance the PoC and fix recommendation:
 {
   "tool": "update_artifact_status",
   "params": {
-    "artifactId": "art-fd-0005",
+    "artifactId": "urn:dkg:wm:b8d3e7a14f2c0951",
     "newStatus": "validated"
   }
 }
@@ -492,11 +481,11 @@ Also advance the PoC and fix recommendation:
 
 ```json
 {
-  "artifactId": "art-fd-0005",
-  "previousStatus": "draft",
+  "success": true,
+  "message": "Status updated to validated",
+  "artifactId": "urn:dkg:wm:b8d3e7a14f2c0951",
   "newStatus": "validated",
-  "updatedAt": "2026-05-26T09:14:34Z",
-  "message": "Status updated."
+  "modifiedAt": "2026-05-26T09:14:34.000Z"
 }
 ```
 
@@ -513,7 +502,7 @@ can be promoted to the shared DKG (visible to team agents, persistent).
 {
   "tool": "update_artifact_status",
   "params": {
-    "artifactId": "art-fd-0003",
+    "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69",
     "newStatus": "ready_to_share"
   }
 }
@@ -523,11 +512,11 @@ can be promoted to the shared DKG (visible to team agents, persistent).
 
 ```json
 {
-  "artifactId": "art-fd-0003",
-  "previousStatus": "validated",
+  "success": true,
+  "message": "Status updated to ready_to_share",
+  "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69",
   "newStatus": "ready_to_share",
-  "updatedAt": "2026-05-26T09:16:08Z",
-  "message": "Status updated. Artifact is ready for promote_to_shared_memory."
+  "modifiedAt": "2026-05-26T09:16:08.000Z"
 }
 ```
 
@@ -544,7 +533,7 @@ other agents and future sessions can reference it.
 {
   "tool": "promote_to_shared_memory",
   "params": {
-    "artifactId": "art-fd-0003",
+    "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69",
     "confirm": true
   }
 }
@@ -554,24 +543,18 @@ other agents and future sessions can reference it.
 
 ```json
 {
-  "artifactId": "art-fd-0003",
-  "sharedMemoryId": "shared-firedancer-0198",
-  "status": "promoted",
-  "promotedAt": "2026-05-26T09:16:55Z",
-  "visibility": "team",
-  "sensitivity": "confidential",
-  "message": "Artifact promoted to shared memory. Accessible to team agents with clearance >= confidential. Provenance edges to art-fd-0001 and art-fd-0002 preserved in shared graph.",
-  "dkgNodeUri": "dkg://firedancer-audit/shared-firedancer-0198"
+  "success": true,
+  "message": "Artifact promoted to shared memory successfully",
+  "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69"
 }
 ```
 
 **What this did:**
 - Moved the artifact out of session-scoped working memory into the persistent
-  shared DKG.
+  shared DKG context graph.
 - Preserved all provenance edges to the two source observations.
-- Set visibility to `team` (not public) because sensitivity is `confidential`.
-- Assigned a stable `sharedMemoryId` (`shared-firedancer-0198`) that can be
-  referenced in future sessions.
+- Artifact status remains `ready_to_share` — promotion is a Shared-Memory
+  transition, not a new status value.
 
 ---
 
@@ -595,61 +578,60 @@ artifacts are tracked and see their statuses at a glance.
 
 ```json
 {
+  "success": true,
+  "message": "Session summary for fd-audit-2026-05-26-001",
   "sessionId": "fd-audit-2026-05-26-001",
-  "startedAt": "2026-05-26T08:04:31Z",
-  "lastActivityAt": "2026-05-26T09:16:55Z",
-  "artifactCount": 5,
+  "count": 5,
   "artifacts": [
     {
-      "artifactId": "art-fd-0001",
-      "title": "fd_shred_merkle_parse: missing bounds check on hdr->data_cnt (OOB stack write)",
-      "type": "observation",
-      "status": "draft"
-    },
-    {
-      "artifactId": "art-fd-0002",
-      "title": "fd_shred_merkle_parse callers pass raw peer data without sanitising data_cnt",
-      "type": "observation",
-      "status": "draft"
-    },
-    {
-      "artifactId": "art-fd-0003",
-      "title": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
-      "type": "vulnerability",
+      "id": "urn:dkg:wm:c4e8d2f01a3b5c69",
+      "name": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
+      "type": "vulnerability_finding",
       "status": "ready_to_share",
-      "sharedMemoryId": "shared-firedancer-0198"
+      "capturedAt": "2026-05-26T08:18:44.000Z"
     },
     {
-      "artifactId": "art-fd-0004",
-      "title": "PoC seed: fd_shred_merkle_parse OOB write — data_cnt=255 triggers stack overflow",
-      "type": "poc",
-      "status": "validated"
+      "id": "urn:dkg:wm:b8d3e7a14f2c0951",
+      "name": "Fix: add data_cnt bounds check in fd_shred_merkle_parse before Merkle copy loop",
+      "type": "audit_note",
+      "status": "validated",
+      "capturedAt": "2026-05-26T08:37:52.000Z"
     },
     {
-      "artifactId": "art-fd-0005",
-      "title": "Fix: add data_cnt bounds check in fd_shred_merkle_parse before Merkle copy loop",
-      "type": "fix_recommendation",
-      "status": "validated"
+      "id": "urn:dkg:wm:e5f1a3b7c2d08e94",
+      "name": "PoC seed: fd_shred_merkle_parse OOB write — data_cnt=255 triggers stack overflow",
+      "type": "code_analysis",
+      "status": "validated",
+      "capturedAt": "2026-05-26T08:31:09.000Z"
+    },
+    {
+      "id": "urn:dkg:wm:a17b93f0c2e4d518",
+      "name": "fd_shred_merkle_parse callers pass raw peer data without sanitising data_cnt",
+      "type": "research_note",
+      "status": "draft",
+      "capturedAt": "2026-05-26T08:09:17.000Z"
+    },
+    {
+      "id": "urn:dkg:wm:7f3a2b1c9d0e4f56",
+      "name": "fd_shred_merkle_parse: missing bounds check on hdr->data_cnt (OOB stack write)",
+      "type": "research_note",
+      "status": "draft",
+      "capturedAt": "2026-05-26T08:04:31.000Z"
     }
   ],
-  "typeBreakdown": {
-    "observation": 2,
-    "vulnerability": 1,
-    "poc": 1,
-    "fix_recommendation": 1
-  },
-  "statusBreakdown": {
-    "draft": 2,
-    "validated": 2,
-    "ready_to_share": 1
+  "typeCounts": {
+    "vulnerability_finding": 1,
+    "audit_note": 1,
+    "code_analysis": 1,
+    "research_note": 2
   }
 }
 ```
 
-**Observation:** The two raw observations (`art-fd-0001`, `art-fd-0002`) are
-still `draft` — that is intentional. They are intermediate work products, not
-conclusions; they do not need promotion. Only the vulnerability synthesis
-(`art-fd-0003`) was promoted.
+**Observation:** The two raw observations (`urn:dkg:wm:7f3a2b1c9d0e4f56`,
+`urn:dkg:wm:a17b93f0c2e4d518`) are still `draft` — that is intentional. They
+are intermediate work products, not conclusions; they do not need promotion.
+Only the vulnerability synthesis (`urn:dkg:wm:c4e8d2f01a3b5c69`) was promoted.
 
 ---
 
@@ -665,7 +647,7 @@ into a structured report.
 {
   "tool": "get_claim_review",
   "params": {
-    "artifactId": "art-fd-0003"
+    "artifactId": "urn:dkg:wm:c4e8d2f01a3b5c69"
   }
 }
 ```
@@ -674,52 +656,32 @@ into a structured report.
 
 ```json
 {
-  "artifactId": "art-fd-0003",
-  "claimReviewId": "cr-fd-2026-0526-0003",
-  "generatedAt": "2026-05-26T09:21:14Z",
+  "success": true,
+  "message": "ClaimReview generated successfully",
   "claimReview": {
-    "title": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
-    "severity": "HIGH",
-    "escalationPath": "CRITICAL (if stack canaries absent)",
-    "contestCommit": "2f4625e3",
-    "affectedFile": "fd_shred_parse.c",
-    "affectedFunction": "fd_shred_merkle_parse",
-    "affectedLine": 387,
-    "contestHarness": "shred_parse",
-    "confidence": 0.94,
-    "sections": {
-      "summary": "An attacker-controlled uint16_t field `data_cnt` in a Merkle shred header is used as the loop bound when copying 32-byte Merkle proof nodes into a fixed-depth stack buffer of size FD_SHRED_MERKLE_PROOF_DEPTH_MAX (20). Supplying data_cnt > 20 causes an out-of-bounds write on the shred receive thread's stack. Reproducible via the shred_parse contest harness.",
-      "rootCause": "Missing upper-bound check: `hdr->data_cnt` is a peer-supplied uint16_t (range 0..65535) and is used directly as the loop count against a stack array of depth 20. No sanitisation occurs in fd_shred_merkle_parse() or in either of its two callers.",
-      "attackerModel": "Any peer that can send a UDP datagram to the Firedancer validator's Turbine shred-receive port. No authentication is required for shred packets prior to parsing.",
-      "impactDetails": "Minimum: controlled stack corruption → validator process crash → DoS, loss of stake rewards. Escalated: stack canary bypass + instruction pointer control → remote code execution.",
-      "provenanceChain": [
-        {"artifactId": "art-fd-0001", "role": "source observation", "title": "Missing bounds check on hdr->data_cnt"},
-        {"artifactId": "art-fd-0002", "role": "source observation", "title": "Callers pass raw peer data without sanitising data_cnt"},
-        {"artifactId": "art-fd-0003", "role": "vulnerability synthesis", "title": "OOB stack write"},
-        {"artifactId": "art-fd-0004", "role": "poc", "title": "data_cnt=255 seed triggers ASAN stack-buffer-overflow"},
-        {"artifactId": "art-fd-0005", "role": "fix_recommendation", "title": "Add data_cnt bounds check before Merkle copy loop"}
-      ],
-      "reproductionSteps": "1. Build Firedancer shred_parse harness with ASAN.\n2. Use seed from art-fd-0004 (88-byte header with data_cnt=0x00FF, followed by 8160 bytes of 0x41).\n3. Run: ./shred_parse_fuzzer seed_file\n4. Expected: ASAN stack-buffer-overflow WRITE at fd_shred_merkle_parse+0x...",
-      "fixRecommendation": "Add `if( FD_UNLIKELY( hdr->data_cnt > FD_SHRED_MERKLE_PROOF_DEPTH_MAX ) ) return FD_SHRED_PARSE_ERR_DATA_CNT;` immediately before the Merkle copy loop in fd_shred_merkle_parse() (fd_shred_parse.c:~385)."
-    }
-  },
-  "sensitivity": "confidential",
-  "message": "ClaimReview generated. Ready for Immunefi submission portal."
+    "@context": "https://schema.org/",
+    "@type": "ClaimReview",
+    "name": "[HIGH/CRITICAL] OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
+    "reviewBody": "VULNERABILITY HYPOTHESIS\n\nTitle: OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt\n\nRoot cause:\n  fd_shred_merkle_parse() iterates `hdr->data_cnt` times writing 32-byte Merkle\n  nodes into a stack buffer of fixed depth FD_SHRED_MERKLE_PROOF_DEPTH_MAX (20)...",
+    "reviewRating": { "ratingValue": 5 },
+    "url": "urn:dkg:wm:c4e8d2f01a3b5c69",
+    "datePublished": "2026-05-26T09:21:14Z"
+  }
 }
 ```
 
-**This ClaimReview is submission-ready.** It includes the full provenance chain
-(five artifacts), concrete reproduction steps, and the recommended fix. The
-`confidence` score (0.94) reflects: vulnerability reproduced, scope confirmed,
-novelty confirmed against shared memory.
+**Interpretation:** `ratingValue: 5` because the artifact's status is `ready_to_share`.
+The ClaimReview is Oracle-ready — it can be submitted to any schema.org-compatible
+consumer or the OriginTrail Oracle endpoint.
 
 ---
 
 ## Step 13 — Synthesize Session
 
 Close the session with a consolidated synthesis artifact. `synthesize_session`
-reads all artifacts in the session and produces a narrative summary with key
-findings, open questions, and recommended next steps.
+reads every artifact in the session, tallies a type breakdown, and writes a new
+`knowledge_synthesis` artifact (auto-set to status `validated`) containing a
+structured roll-up of the session's artifacts.
 
 ### Tool call
 
@@ -737,43 +699,17 @@ findings, open questions, and recommended next steps.
 
 ```json
 {
-  "synthesisId": "synth-fd-2026-0526-001",
-  "sessionId": "fd-audit-2026-05-26-001",
-  "title": "Firedancer shred_parse session — 2026-05-26 — OOB write in fd_shred_merkle_parse",
-  "generatedAt": "2026-05-26T09:28:41Z",
-  "synthesis": {
-    "narrative": "Session focused on the shred_parse harness (contest scope confirmed). A single high-confidence finding was developed end-to-end: an OOB stack write in fd_shred_merkle_parse() reachable from any unauthenticated network peer via a crafted Merkle data shred with data_cnt > FD_SHRED_MERKLE_PROOF_DEPTH_MAX. The finding was reproduced with ASAN, linked to a minimal PoC seed, and a fix recommendation was captured. The vulnerability artifact was promoted to shared memory (shared-firedancer-0198) and a ClaimReview was generated (cr-fd-2026-0526-0003).",
-    "keyFindings": [
-      {
-        "artifactId": "art-fd-0003",
-        "sharedMemoryId": "shared-firedancer-0198",
-        "severity": "HIGH/CRITICAL",
-        "title": "OOB stack write in fd_shred_merkle_parse via peer-controlled data_cnt",
-        "claimReviewId": "cr-fd-2026-0526-0003",
-        "status": "ready_to_share"
-      }
-    ],
-    "openQuestions": [
-      "Does the production Firedancer build enable stack canaries? If not, the escalation path from crash to RCE is shorter.",
-      "Are there analogous missing bounds checks on code_cnt, resigned_cnt, or other peer-controlled array-index fields in fd_shred_parse.c?",
-      "Does the same pattern appear in fd_shred_parse for code shreds (fd_shred_parse_code at fd_shred.c:694)?"
-    ],
-    "recommendedNextSteps": [
-      "Submit art-fd-0003 via ClaimReview cr-fd-2026-0526-0003 to Immunefi portal before 2026-05-09 17:00 UTC.",
-      "Audit code_cnt and other uint16_t header fields in fd_shred_parse.c for similar missing bounds checks.",
-      "Check fd_shred_tile.c for any secondary validation that might mitigate the issue at the tile boundary (affects severity assessment)."
-    ],
-    "artifactsSummary": {
-      "total": 5,
-      "promoted": 1,
-      "validated": 2,
-      "draft": 2
-    },
-    "sessionDurationMinutes": 84
-  },
-  "message": "Session synthesized. Synthesis artifact stored in working memory as synth-fd-2026-0526-001."
+  "success": true,
+  "message": "Knowledge synthesis created successfully",
+  "synthesisArtifactId": "urn:dkg:wm:f2a9c4e0b17d3856",
+  "ual": "<dkg-node-ual-for-synthesis>",
+  "artifactCount": 5,
+  "synthesis": "## Knowledge Synthesis for Session: fd-audit-2026-05-26-001\n\n**Artifact Count:** 5\n\n**Type Breakdown:** research_note: 2, vulnerability_finding: 1, code_analysis: 1, audit_note: 1\n\n### Artifacts:\n- Missing bounds check in fd_shred_merkle_parse (research_note, draft, hash: 7f3a2b1c)\n- Callers pass unsanitised data_cnt (research_note, draft, hash: a17b93f0)\n- OOB stack write via peer-controlled data_cnt (vulnerability_finding, ready_to_share, hash: c4e8d2f0)\n- PoC harness for fd_shred_merkle_parse OOB (code_analysis, validated, hash: e5f1a3b7)\n- Fix recommendation: bound data_cnt before Merkle loop (audit_note, validated, hash: b8d3e7a1)\n\n---\n*Generated by dkg-claude-code-memory synthesis tool*\n"
 }
 ```
+
+The synthesis itself is captured as a new `knowledge_synthesis` artifact, so it is
+searchable and promotable like any other artifact.
 
 ---
 
@@ -782,19 +718,19 @@ findings, open questions, and recommended next steps.
 | Step | Tool | Artifact(s) | Status after | Key action |
 |------|------|-------------|--------------|------------|
 | 0 | `get_node_status` | — | — | Pre-flight health check |
-| 1 | `capture_research_finding` | art-fd-0001 | draft | Raw observation: missing bounds check |
-| 2 | `capture_research_finding` | art-fd-0002 | draft | Raw observation: callers pass unsanitised data |
-| 3 | `capture_research_finding` | art-fd-0003 | draft | Vulnerability synthesis, derivedFrom 0001+0002 |
+| 1 | `capture_research_finding` | urn:dkg:wm:7f3a2b1c9d0e4f56 | draft | Raw observation: missing bounds check |
+| 2 | `capture_research_finding` | urn:dkg:wm:a17b93f0c2e4d518 | draft | Raw observation: callers pass unsanitised data |
+| 3 | `capture_research_finding` | urn:dkg:wm:c4e8d2f01a3b5c69 | draft | Vulnerability synthesis, derivedFrom 0001+0002 |
 | 4 | `search_working_memory` | — | — | Confirm no duplicate in session |
 | 4 | `query_shared_memory` | — | — | Confirm novel vs. shared DKG history |
-| 5 | `retrieve_artifact` | art-fd-0001 | — | Verify file/line before writing PoC |
-| 6 | `capture_research_finding` | art-fd-0004 | draft | PoC harness, derivedFrom art-fd-0003 |
-| 7 | `capture_research_finding` | art-fd-0005 | draft | Fix recommendation, derivedFrom art-fd-0003 |
-| 8 | `update_artifact_status` | art-fd-0003,0004,0005 | validated | Reproduction confirmed |
-| 9 | `update_artifact_status` | art-fd-0003 | ready_to_share | Review complete |
-| 10 | `promote_to_shared_memory` | art-fd-0003 | promoted | Published to shared DKG |
+| 5 | `retrieve_artifact` | urn:dkg:wm:7f3a2b1c9d0e4f56 | — | Verify file/line before writing PoC |
+| 6 | `capture_research_finding` | urn:dkg:wm:e5f1a3b7c2d08e94 | draft | PoC harness, derivedFrom urn:dkg:wm:c4e8d2f01a3b5c69 |
+| 7 | `capture_research_finding` | urn:dkg:wm:b8d3e7a14f2c0951 | draft | Fix recommendation, derivedFrom urn:dkg:wm:c4e8d2f01a3b5c69 |
+| 8 | `update_artifact_status` | urn:dkg:wm:c4e8d2f01a3b5c69, e5f1..., b8d3... | validated | Reproduction confirmed |
+| 9 | `update_artifact_status` | urn:dkg:wm:c4e8d2f01a3b5c69 | ready_to_share | Review complete |
+| 10 | `promote_to_shared_memory` | urn:dkg:wm:c4e8d2f01a3b5c69 | ready_to_share | Published to shared DKG |
 | 11 | `get_session_summary` | — | — | Status snapshot before closing |
-| 12 | `get_claim_review` | art-fd-0003 | — | Oracle submission document |
+| 12 | `get_claim_review` | urn:dkg:wm:c4e8d2f01a3b5c69 | — | Oracle submission document |
 | 13 | `synthesize_session` | — | — | Narrative + next steps |
 
 ---
@@ -813,11 +749,11 @@ VALIDATED
   ▼
 READY_TO_SHARE
   │  Peer review / self-review sign-off
+  │  Status remains ready_to_share after promotion
   │
-  ▼
-PROMOTED  (via promote_to_shared_memory)
+  ▼  promote_to_shared_memory (confirm: true)
      Persistent in shared DKG, visible to team agents,
-     stable sharedMemoryId for cross-session reference
+     stable UAL for cross-session reference
 ```
 
 ---
@@ -842,24 +778,24 @@ does not become publicly readable.
 ## Provenance Graph (full session)
 
 ```
-art-fd-0001 (observation, draft)
+urn:dkg:wm:7f3a2b1c9d0e4f56 (research_note, draft)
     │
     │ derives→
     │
-art-fd-0002 (observation, draft)
+urn:dkg:wm:a17b93f0c2e4d518 (research_note, draft)
     │
     │ derives→
     │
-    └──────────────► art-fd-0003 (vulnerability, ready_to_share)
-                          │              └── promoted → shared-firedancer-0198
+    └──────────────► urn:dkg:wm:c4e8d2f01a3b5c69 (vulnerability_finding, ready_to_share)
+                          │              └── promoted to shared DKG
                           │ derives→
-                          ├──────────► art-fd-0004 (poc, validated)
+                          ├──────────► urn:dkg:wm:e5f1a3b7c2d08e94 (code_analysis, validated)
                           │
-                          └──────────► art-fd-0005 (fix_recommendation, validated)
+                          └──────────► urn:dkg:wm:b8d3e7a14f2c0951 (audit_note, validated)
 ```
 
 Every edge in this graph is registered in the DKG and survives session close.
-A future session can call `search_working_memory` with `derivedFromId: "art-fd-0003"`
+A future session can call `search_working_memory` with `derivedFromId: "urn:dkg:wm:c4e8d2f01a3b5c69"`
 to enumerate all artifacts that trace back to this vulnerability.
 
 ---

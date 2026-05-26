@@ -55,9 +55,9 @@ capture_research_finding({
 **Sensitivity Levels:**
 - `public` — Safe for team sharing, no restrictions
 - `internal` — Team members only, requires promotion
-- `confidential` — Restricted to specific roles, manual review required
+- `confidential` — Never eligible for promotion to Shared Memory
 
-The sensitivity field works with the `promote_to_shared_memory` guard to prevent accidental exposure of sensitive findings.
+The level is stored on the artifact as `schema:accessMode`. The `promote_to_shared_memory` guard rejects any artifact tagged `confidential`, preventing accidental exposure of sensitive findings.
 
 ---
 
@@ -70,8 +70,8 @@ capture_research_finding({
   content: "Reentrancy vulnerability in withdraw() allows recursive calls...",
   type: "vulnerability_finding",
   derivedFrom: [
-    "urn:dkg:artifact:ccm-research:sha256:abc123...",  // Initial analysis
-    "urn:dkg:artifact:ccm-research:sha256:def456..."   // Code review
+    "urn:dkg:wm:d82c6a1b9f3e4c7d",  // Initial analysis
+    "urn:dkg:wm:a17b93f0c2e4d518"   // Code review
   ],
   parentTaskId: "ccm-parent-session-id",
   subAgentId: "reentrancy-analyzer",
@@ -79,37 +79,42 @@ capture_research_finding({
 });
 ```
 
-Each `derivedFrom` entry is a URN referencing the parent artifact's content hash, creating a verifiable chain of custody.
+Each `derivedFrom` entry is an artifact URN (format `urn:dkg:wm:<16-hex-sha256-prefix>`). Each becomes a `prov:wasDerivedFrom` quad, creating a verifiable chain of custody that `search_working_memory` can trace forward via its `derivedFromId` filter.
 
 ---
 
-## toClaimReview() Serializer
+## ClaimReview JSON-LD (Oracle-ready)
 
-Convert DKG artifacts to schema.org ClaimReview format for audit reporting:
+The `get_claim_review` tool fetches an artifact by ID and serializes it to a schema.org [ClaimReview](https://schema.org/ClaimReview) JSON-LD object, suitable for OriginTrail Oracle consumers. The serializer (`toClaimReview()` in `src/core/serializers.ts`) maps the artifact's trust-gradient status to a 1–5 `ratingValue`:
 
 ```typescript
-const artifact = {
-  id: "urn:dkg:artifact:ccm-research:sha256:xyz789...",
-  content: "Reentrancy in withdraw() allows draining...",
-  type: "vulnerability_finding",
-  severity: "high",
-  status: "validated",
-  sensitivity: "internal"
-};
-
-const claimReview = toClaimReview(artifact);
-// Output:
+get_claim_review({ artifactId: "urn:dkg:wm:d82c6a1b9f3e4c7d" });
+// → result.claimReview:
 // {
+//   "@context": "https://schema.org/",
 //   "@type": "ClaimReview",
-//   "itemReviewed": { "@type": "SoftwareApplication", "name": "target-contract" },
-//   "reviewAspect": "security",
-//   "reviewRating": { "@type": "Rating", "ratingValue": "2", "bestRating": "5" },
-//   "author": { "@type": "Person", "name": "claude-code-agent" },
-//   "datePublished": "2026-05-25T14:30:00Z",
-//   "description": "Reentrancy vulnerability allows recursive withdraw() calls...",
-//   "evidence": [{ "@type": "DigitalDocument", "encodingFormat": "text/markdown", "url": "urn:dkg:artifact:..." }]
+//   "name": "Reentrancy in withdraw()",
+//   "reviewBody": "The withdraw() function allows recursive calls before the balance is zeroed...",
+//   "reviewRating": { "ratingValue": 4 },
+//   "url": "urn:dkg:wm:d82c6a1b9f3e4c7d",
+//   "datePublished": "2026-05-25T14:30:00.000Z"
 // }
 ```
+
+**Status → `ratingValue` mapping:**
+
+| Status | ratingValue |
+|---|---|
+| `ready_to_share` | 5 |
+| `validated` | 4 |
+| `review_needed` | 3 |
+| `needs_sources` | 2 |
+| `draft` / `deprecated` / `discarded` | 1 |
+
+- `name` ← artifact title
+- `reviewBody` ← artifact content
+- `url` ← artifact URN (`urn:dkg:wm:<16-hex-sha256-prefix>`)
+- `datePublished` ← capture timestamp
 
 ---
 

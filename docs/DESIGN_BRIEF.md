@@ -91,6 +91,8 @@ The DKG v10 memory model defines three layers. This integration currently implem
 │  │  - synthesize_session.ts                                 │   │
 │  │  - get_session_summary.ts                                │   │
 │  │  - query_shared_memory.ts                                │   │
+│  │  - get-claim-review.ts                                   │   │
+│  │  - get-node-status.ts                                    │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                              ↓                                   │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -131,24 +133,29 @@ The DKG v10 memory model defines three layers. This integration currently implem
 interface CaptureParams {
   content: string;              // Required: artifact content (≥80 chars)
   type: ArtifactType;           // Required: e.g., "vulnerability_finding", "research_note"
+  title?: string;               // Optional: human-readable title
   status?: ArtifactStatus;      // Optional: default "draft"
+  sensitivity?: 'public' | 'internal' | 'confidential';  // Optional: default "internal"
+  derivedFrom?: string[];       // Optional: array of artifact URNs this artifact derives from
+  source?: string;              // Optional: origin of the content (e.g., "tool", "file", "manual")
   sessionId?: string;           // Optional: default from env or generated
-  derivedFrom?: string[];       // Optional: array of UALs this artifact derives from
+  conversationId?: string;      // Optional: conversation identifier
+  parentTaskId?: string;        // Optional: parent task identifier
   subAgentId?: string;          // Optional: sub-agent identifier
   agentRole?: string;           // Optional: e.g., "security-auditor"
-  parentTaskId?: string;        // Optional: parent session UAL
-  sensitivity?: 'public' | 'internal' | 'confidential';  // Optional: default "internal"
 }
 ```
 
-**Returns:**
+**Returns:** (every tool result is a JSON envelope of the form `{ success, message, ...fields }`)
 ```typescript
 interface CaptureResult {
-  ual: string;                  // Universal Artifact Locator (e.g., "ual:local:artifacts:abc123")
-  urn: string;                  // URN identifier (e.g., "urn:dkg:wm:sha256:abc123...")
+  success: boolean;
+  message: string;
+  artifactId: string;           // URN identifier (e.g., "urn:dkg:wm:d82c6a1b9f3e4c7d")
+  ual: string;                  // Universal Asset Locator returned by the DKG node
   status: ArtifactStatus;       // Assigned status
-  hash: string;                 // SHA-256 content hash
-  timestamp: string;            // ISO-8601 creation time
+  contentHash: string;          // SHA-256 content hash (sha256:<64 hex chars>)
+  derivedFrom?: string[];       // Echoed back when provided
 }
 ```
 
@@ -158,11 +165,12 @@ const result = await client.capture_research_finding({
   content: "Reentrancy vulnerability found in TokenVault.withdraw():42. Attacker can re-enter before balance update.",
   type: "vulnerability_finding",
   status: "needs_sources",
-  derivedFrom: ["urn:dkg:wm:sha256:abc123..."],  // Link to prior analysis
+  derivedFrom: ["urn:dkg:wm:7f3a2b1c9d0e4f56"],  // Link to prior analysis
   subAgentId: "reentrancy-analyzer",
   agentRole: "security-auditor"
 });
-// Returns: { ual: "ual:local:artifacts:def456", urn: "urn:dkg:wm:sha256:def456...", ... }
+// Returns: { success: true, message: "Artifact captured successfully",
+//            artifactId: "urn:dkg:wm:a17b93f0c2e4d518", ual: "<dkg-node-ual>", ... }
 ```
 
 ---
@@ -185,9 +193,14 @@ interface SearchParams {
 **Returns:**
 ```typescript
 interface SearchResult {
-  artifacts: ArtifactRecord[];  // Array of matching artifacts
-  count: number;                // Total matches
-  query: string;                // SPARQL query executed
+  success: boolean;
+  message: string;              // e.g., "Found 3 artifacts"
+  count: number;                // Number of matches returned
+  artifacts: Array<{
+    id: string; name: string; text: string;
+    type: ArtifactType; status: ArtifactStatus;
+    contentHash: string; capturedAt: string; sessionId: string;
+  }>;
 }
 ```
 
@@ -198,8 +211,10 @@ const results = await client.search_working_memory({
   type: "vulnerability_finding",
   limit: 10
 });
-// Returns: { artifacts: [...], count: 3, query: "SELECT ... WHERE { ... }" }
+// Returns: { success: true, message: "Found 3 artifacts", count: 3, artifacts: [...] }
 ```
+
+Also supports `derivedFromId` to trace a provenance chain forward (returns only artifacts with a `prov:wasDerivedFrom` edge to the given URN).
 
 ---
 
@@ -210,36 +225,26 @@ const results = await client.search_working_memory({
 **Parameters:**
 ```typescript
 interface GetArtifactParams {
-  identifier: string;           // UAL or URN (e.g., "urn:dkg:wm:sha256:abc123...")
+  artifactId: string;           // UAL or URN (e.g., "urn:dkg:wm:a17b93f0c2e4d518")
 }
 ```
 
-**Returns:**
+**Returns:** The artifact is returned as a flat map keyed by the local RDF predicate names from its quads (`artifactType`, `name`, `text`, `status`, `contentHash`, `accessMode`, `source`, `sessionId`, `agentRole`, `agentFramework`, `capturedAt`, …):
 ```typescript
-interface ArtifactRecord {
-  ual: string;
-  urn: string;
-  content: string;
-  type: ArtifactType;
-  status: ArtifactStatus;
-  sessionId: string;
-  derivedFrom?: string[];
-  subAgentId?: string;
-  agentRole?: string;
-  parentTaskId?: string;
-  sensitivity: 'public' | 'internal' | 'confidential';
-  hash: string;
-  timestamp: string;
-  provenance?: PROVRecord;      // Full PROV-O graph
+interface RetrieveResult {
+  success: boolean;
+  message: string;
+  artifact: Record<string, string>;  // { artifactType, name, text, status, contentHash, ... }
 }
 ```
 
 **Example Invocation:**
 ```typescript
-const artifact = await client.retrieve_artifact({
-  identifier: "urn:dkg:wm:sha256:def456..."
+const result = await client.retrieve_artifact({
+  artifactId: "urn:dkg:wm:a17b93f0c2e4d518"
 });
-// Returns: full ArtifactRecord with provenance graph
+// Returns: { success: true, message: "Artifact retrieved successfully",
+//            artifact: { artifactType: "vulnerability_finding", name: "...", text: "...", status: "validated", ... } }
 ```
 
 ---
@@ -251,30 +256,30 @@ const artifact = await client.retrieve_artifact({
 **Parameters:**
 ```typescript
 interface UpdateStatusParams {
-  identifier: string;           // UAL or URN
+  artifactId: string;           // UAL or URN
   newStatus: ArtifactStatus;    // Target status
-  reason?: string;              // Optional: human-readable reason for change
 }
 ```
 
 **Returns:**
 ```typescript
 interface UpdateStatusResult {
-  ual: string;
-  oldStatus: ArtifactStatus;
+  success: boolean;
+  message: string;              // e.g., "Status updated to validated"
+  artifactId: string;
   newStatus: ArtifactStatus;
-  updated: boolean;
+  modifiedAt: string;           // ISO-8601 timestamp of the status write
 }
 ```
 
 **Example Invocation:**
 ```typescript
 const result = await client.update_artifact_status({
-  identifier: "urn:dkg:wm:sha256:def456...",
-  newStatus: "validated",
-  reason: "Sources verified, manual review complete"
+  artifactId: "urn:dkg:wm:a17b93f0c2e4d518",
+  newStatus: "validated"
 });
-// Returns: { ual: "...", oldStatus: "needs_sources", newStatus: "validated", updated: true }
+// Returns: { success: true, message: "Status updated to validated",
+//            artifactId: "urn:dkg:wm:a17b93f0c2e4d518", newStatus: "validated", modifiedAt: "..." }
 ```
 
 ---
@@ -286,28 +291,29 @@ const result = await client.update_artifact_status({
 **Parameters:**
 ```typescript
 interface PromoteParams {
-  identifier: string;           // UAL or URN of artifact to promote
+  artifactId: string;           // UAL or URN of artifact to promote
   confirm: boolean;             // Required: must be true (explicit user confirmation)
-  overrideSensitivity?: boolean; // Optional: promote even if sensitivity="internal"
 }
 ```
 
 **Returns:**
 ```typescript
 interface PromoteResult {
-  ual: string;
-  promoted: boolean;
-  sharedContextGraph: string;   // Context graph where artifact now resides
+  success: boolean;
+  message: string;              // "Artifact promoted to shared memory successfully"
+  artifactId: string;
 }
 ```
+
+If `confirm` is not exactly `true`, the tool returns `{ success: false, message: ... }` without touching the DKG. Artifacts tagged `sensitivity: 'confidential'` are also rejected.
 
 **Example Invocation:**
 ```typescript
 const result = await client.promote_to_shared_memory({
-  identifier: "urn:dkg:wm:sha256:ghi789...",
+  artifactId: "urn:dkg:wm:c4e8d2f01a3b5c69",
   confirm: true
 });
-// Returns: { ual: "...", promoted: true, sharedContextGraph: "ual:team:context:xyz" }
+// Returns: { success: true, message: "Artifact promoted to shared memory successfully", artifactId: "urn:dkg:wm:c4e8d2f01a3b5c69" }
 ```
 
 ---
@@ -328,11 +334,11 @@ interface SynthesizeParams {
 ```typescript
 interface SynthesizeResult {
   success: boolean;
-  artifactId: string;  // URN of the newly created knowledge_synthesis artifact
-  ual: string;         // DKG UAL for the synthesis artifact
+  message: string;            // "Knowledge synthesis created successfully"
+  synthesisArtifactId: string;  // URN of the newly created knowledge_synthesis artifact
+  ual: string;                // DKG UAL for the synthesis artifact
   artifactCount: number;
-  typeBreakdown: Record<ArtifactType, number>;
-  content: string;     // Markdown-formatted synthesis
+  synthesis: string;          // Markdown-formatted synthesis (the captured content)
 }
 ```
 
@@ -347,20 +353,19 @@ The output is stored as an artifact with `artifactType: 'knowledge_synthesis'`. 
 **Parameters:**
 ```typescript
 interface SessionSummaryParams {
-  sessionId: string;            // Session ID to summarize
-  includeContent?: boolean;     // Optional: include full artifact content
-  groupByType?: boolean;        // Optional: group artifacts by type
+  sessionId?: string;           // Optional: session ID to summarize (defaults to current session)
 }
 ```
 
 **Returns:**
 ```typescript
 interface SessionSummary {
+  success: boolean;
+  message: string;            // e.g., "Session summary for ccm-1a2b3c4d"
   sessionId: string;
-  artifactCount: number;
-  artifactsByType: Record<string, number>;
-  artifactsByStatus: Record<string, number>;
-  timeRange: { start: string; end: string };
+  count: number;
+  artifacts: Array<{ id: string; name: string; type: ArtifactType; status: ArtifactStatus; capturedAt: string }>;
+  typeCounts: Record<string, number>;
 }
 ```
 
@@ -373,17 +378,18 @@ interface SessionSummary {
 **Parameters:**
 ```typescript
 interface QuerySharedParams {
-  query: string;                // Required: SPARQL query string against Shared Memory graph
-  limit?: number;               // Optional: max results (default 20, max 100)
+  query: string;                // Required: keyword/text search string over Shared Memory (CONTAINS filter — not a raw SPARQL query)
+  limit?: number;               // Optional: max results (default 10, clamped 1..100)
 }
 ```
 
 **Returns:**
 ```typescript
 interface SharedMemoryResult {
-  artifacts: ArtifactRecord[];
+  success: boolean;
+  message: string;            // e.g., "Found 2 shared memory entries"
   count: number;
-  sharedContextGraph: string;
+  entries: Array<{ ual: string; title: string; snippet: string; type: string }>;
 }
 ```
 
@@ -408,10 +414,9 @@ interface GetClaimReviewResult {
     '@type': 'ClaimReview';
     name: string;
     reviewBody: string;
-    reviewRating: { '@type': 'Rating'; ratingValue: number; bestRating: number };
-    url: string;          // Artifact URN
+    reviewRating: { ratingValue: number };
+    url: string;          // Artifact URN (urn:dkg:wm:<16hex>)
     datePublished: string;
-    author: { '@type': 'Person'; name: string };
   };
 }
 ```
@@ -470,13 +475,14 @@ const morningContext = await client.search_working_memory({
 // Returns 3 prior findings from yesterday's session about challengeExit() state machine
 // Example result:
 // {
-//   artifacts: [
-//     { ual: "ual:local:artifacts:abc123", content: "HYPOTHESIS: challengeExit may cause DoS...", status: "validated" },
-//     { ual: "ual:local:artifacts:def456", content: "State machine analysis: validator states...", status: "review_needed" },
-//     { ual: "ual:local:artifacts:ghi789", content: "Static analysis: grep results for challengeExit...", status: "validated" }
-//   ],
+//   success: true,
+//   message: "Found 3 artifacts",
 //   count: 3,
-//   query: "SELECT ?artifact ?content ?status WHERE { ?artifact wm:type 'vulnerability_finding' ... }"
+//   artifacts: [
+//     { id: "urn:dkg:wm:abc1230def456789", name: "challengeExit DoS hypothesis", text: "HYPOTHESIS: challengeExit may cause DoS...", type: "vulnerability_finding", status: "validated", contentHash: "sha256:...", capturedAt: "...", sessionId: "ccm-fire-20260524" },
+//     { id: "urn:dkg:wm:def4561abc789012", name: "validator state machine analysis", text: "State machine analysis: validator states...", type: "vulnerability_finding", status: "review_needed", contentHash: "sha256:...", capturedAt: "...", sessionId: "ccm-fire-20260524" },
+//     { id: "urn:dkg:wm:ghi7892def345678", name: "challengeExit grep results", text: "Static analysis: grep results for challengeExit...", type: "vulnerability_finding", status: "validated", contentHash: "sha256:...", capturedAt: "...", sessionId: "ccm-fire-20260524" }
+//   ]
 // }
 ```
 
@@ -492,15 +498,15 @@ const reentrancyFinding = await client.capture_research_finding({
   type: "vulnerability_finding",
   status: "needs_sources",
   derivedFrom: [
-    "urn:dkg:wm:sha256:abc123...",  // Prior state machine analysis from Session ccm-fire-20260524
-    "urn:dkg:wm:sha256:def456..."   // Static analysis grep result: grep -rn "challengeExit" --include="*.sol"
+    "urn:dkg:wm:7f3a2b1c9d0e4f56",  // Prior state machine analysis from Session ccm-fire-20260524
+    "urn:dkg:wm:a17b93f0c2e4d518"   // Static analysis grep result: grep -rn "challengeExit" --include="*.sol"
   ],
   subAgentId: "megapool-analyzer",
   agentRole: "security-auditor",
   parentTaskId: "ual:local:session:fire-20260524",
   sensitivity: "internal"
 });
-// Returns: { ual: "ual:local:artifacts:jkl012", urn: "urn:dkg:wm:sha256:jkl012...", status: "needs_sources", hash: "sha256:...", timestamp: "2026-05-25T09:47:23Z" }
+// Returns: { success: true, message: "Artifact captured successfully", artifactId: "urn:dkg:wm:c4e8d2f01a3b5c69", ual: "<dkg-node-ual>", status: "needs_sources", contentHash: "sha256:..." }
 ```
 
 The `derivedFrom` array creates a PROV-O chain showing this finding builds on prior work. The `subAgentId` identifies which specialized analyzer produced it. The `parentTaskId` links back to the original session.
@@ -527,8 +533,8 @@ const patternFinding = await client.capture_research_finding({
   type: "research_note",
   status: "draft",
   derivedFrom: [
-    "urn:dkg:wm:sha256:jkl012...",  // The Firedancer finding captured earlier
-    "urn:dkg:wm:sha256:mno345..."   // Polymarket oracle finding from prior session
+    "urn:dkg:wm:c4e8d2f01a3b5c69",  // The Firedancer finding captured earlier
+    "urn:dkg:wm:b8d3e7a14f2c0951"   // Polymarket oracle finding from prior session
   ],
   subAgentId: "pattern-synthesizer",
   agentRole: "cross-program-analyst",
@@ -550,14 +556,14 @@ At the end of the day, drMurlly generates a session summary:
     "title": "Firedancer audit — Day 2 synthesis"
   }
 }
-// Returns: knowledge_synthesis artifact with consolidated content, type counts, status breakdown
+// Returns: { success: true, message: "Knowledge synthesis created successfully",
+//            synthesisArtifactId: "urn:dkg:wm:...", ual: "...", artifactCount: 12, synthesis: "## Knowledge Synthesis ..." }
 ```
 
-The summary includes:
-- Total artifacts: 12
-- By type: 8 vulnerability_finding, 3 research_note, 1 static_analysis
-- By status: 2 draft, 5 needs_sources, 3 review_needed, 2 validated
-- Provenance graph showing which findings derived from which prior artifacts
+The generated `knowledge_synthesis` artifact (auto-status `validated`) contains:
+- Total artifact count for the session: 12
+- A type breakdown line: `vulnerability_finding: 8, research_note: 3, code_analysis: 1`
+- A per-artifact list, each line showing name, type, status, and content-hash prefix
 
 #### Validation and Promotion
 
@@ -565,7 +571,7 @@ Findings marked `validated` are ready for promotion to Shared Memory:
 
 ```typescript
 const promotion = await client.promote_to_shared_memory({
-  identifier: "urn:dkg:wm:sha256:jkl012...",
+  artifactId: "urn:dkg:wm:c4e8d2f01a3b5c69",
   confirm: true
 });
 // Artifact now visible to all team members
@@ -580,21 +586,21 @@ const promotion = await client.promote_to_shared_memory({
 | `review_needed` | Ready for peer validation | No |
 | `validated` | Confirmed by another agent | Yes |
 | `ready_to_share` | Approved for Shared Memory promotion | Yes |
-| `shared` | Gossiped to team | Already at maximum promotion level |
-| `archived` | Retired or superseded | No |
+| `deprecated` | Superseded or no longer relevant | No |
+| `discarded` | Rejected, not valid | No |
 
 ### Provenance Chain Example
 
 A complete provenance chain allows any reviewer to trace a finding back to its original evidence:
 
 ```
-urn:dkg:wm:sha256:abc123... (Static analysis grep result: grep -rn "challengeExit" --include="*.sol")
+urn:dkg:wm:7f3a2b1c9d0e4f56 (Static analysis grep result: grep -rn "challengeExit" --include="*.sol")
     ↓ prov:wasDerivedFrom
-urn:dkg:wm:sha256:def456... (State machine analysis: validator state transitions)
+urn:dkg:wm:a17b93f0c2e4d518 (State machine analysis: validator state transitions)
     ↓ prov:wasDerivedFrom
-urn:dkg:wm:sha256:jkl012... (Reentrancy finding: RocketMegapoolDelegate.distribute() DoS)
+urn:dkg:wm:c4e8d2f01a3b5c69 (Reentrancy finding: RocketMegapoolDelegate.distribute() DoS)
     ↓ prov:wasDerivedFrom
-urn:dkg:wm:sha256:pqr678... (Cross-program pattern synthesis: state machine DoS pattern)
+urn:dkg:wm:e5f1a3b7c2d08e94 (Cross-program pattern synthesis: state machine DoS pattern)
 ```
 
 Each link in the chain includes:
@@ -613,7 +619,7 @@ In a team audit, multiple agents can work on the same program:
 // Agent A (Static Analyzer) captures initial grep results
 const grepResult = await client.capture_research_finding({
   content: "Static analysis: Found 47 occurrences of 'challengeExit' across 12 contracts in RocketMegapool codebase. Hotspots: RocketMegapoolManager.sol (23), RocketMegapoolDelegate.sol (15), RocketNetworkRevenues.sol (9).",
-  type: "static_analysis",
+  type: "code_analysis",
   status: "review_needed",
   subAgentId: "static-analyzer",
   agentRole: "sast-specialist"
@@ -632,7 +638,7 @@ const finding = await client.capture_research_finding({
 // Agent C (PoC Developer) validates the finding
 const pocResult = await client.capture_research_finding({
   content: "PoC complete: forge test --fork-url mainnet passes. Attack requires 2 colluding oDAO members. Confirmed HIGH severity.",
-  type: "poc_result",
+  type: "code_analysis",
   status: "validated",
   derivedFrom: [finding.urn],  // Links to Agent B's finding
   subAgentId: "poc-developer",
@@ -662,7 +668,7 @@ import { toClaimReview } from 'dkg-claude-code-memory';
 const claimReview = toClaimReview(artifactRecord);
 // Returns: { '@context': 'https://schema.org/', '@type': 'ClaimReview',
 //   name: '...', reviewBody: '...', reviewRating: { ratingValue: 4 },
-//   url: 'urn:dkg:wm:sha256:...', datePublished: '2026-05-25T...' }
+//   url: 'urn:dkg:wm:a17b93f0c2e4d518', datePublished: '2026-05-25T...' }
 ```
 
 The `reviewRating.ratingValue` is derived from the artifact's trust gradient status: `draft`→1, `needs_sources`→2, `review_needed`→3, `validated`→4, `ready_to_share`→5. An artifact must reach `validated` status before its ClaimReview rating exceeds 3 — aligning the oracle confidence score with the research workflow.
@@ -689,10 +695,9 @@ const claimReview = toClaimReview(artifactRecord);
 //   "@type": "ClaimReview",
 //   "name": "OOB write in fd_shred_merkle_parse via peer-controlled data_cnt",
 //   "reviewBody": "fd_shred.c:247 — stack buffer overflow when data_cnt > 32...",
-//   "reviewRating": { "@type": "Rating", "ratingValue": 4, "bestRating": 5 },
-//   "url": "urn:dkg:wm:sha256:abc123...",
-//   "datePublished": "2026-05-25T14:32:00Z",
-//   "author": { "@type": "Person", "name": "drMurlly" }
+//   "reviewRating": { "ratingValue": 4 },
+//   "url": "urn:dkg:wm:a17b93f0c2e4d518",
+//   "datePublished": "2026-05-25T14:32:00Z"
 // }
 ```
 
@@ -709,10 +714,10 @@ const claimReview = toClaimReview(artifactRecord);
 | `DKG_WM_MIN_LENGTH` | No | `80` | Minimum content length for artifacts |
 | `DKG_WM_REDACTION` | No | `true` | Enable secret redaction |
 | `DKG_WM_DEDUPE` | No | `true` | Enable content deduplication |
-| `DKG_WM_CONTEXT_GRAPH` | No | `working-memory` | Named graph for Working Memory |
+| `DKG_WM_CONTEXT_GRAPH` | No | `ccm-research` | Named graph for Working Memory |
 | `DKG_WM_ASSERTION_NAME` | No | `artifacts` | DKG assertion name |
-| `DKG_CCM_STATE_DIR` | No | `~/.dkg-claude-code-memory` | Local state directory |
-| `DKG_WM_AUTHOR_ID` | No | `unknown-author` | Human-readable author identifier |
+| `DKG_CCM_STATE_DIR` | No | `~/.dkg/ccm-state` | Local state directory |
+| `DKG_WM_AUTHOR_ID` | No | `unknown` | Human-readable author identifier |
 | `DKG_WM_AGENT_ID` | No | `claude-code-agent` | Agent identifier for provenance quads |
 
 ### From Source
@@ -764,7 +769,7 @@ Redacted content is replaced with `[REDACTED:<pattern_type>]` before storage.
 | Level | Visibility | Promotion Requirement |
 |-------|------------|----------------------|
 | `public` | All team members | Auto-promote to Shared Memory |
-| `internal` | Team members only | Requires `overrideSensitivity: true` |
+| `internal` | Team members only | Requires explicit `confirm: true` to promote |
 | `confidential` | Session owner only | Cannot be promoted |
 
 ### Access Control

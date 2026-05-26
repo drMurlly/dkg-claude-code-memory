@@ -1,7 +1,7 @@
 # Oracle Readiness Guide — OriginTrail DKG Verification
 
-> **Document Version:** 1.0  
-> **Last Updated:** 2026-01-15  
+> **Document Version:** 1.1  
+> **Last Updated:** 2026-05-26  
 > **Project:** dkg-claude-code-memory  
 > **Target:** OriginTrail DKG v10 Oracle Verification
 
@@ -54,89 +54,70 @@ const claimReview = toClaimReview(artifactRecord);
 // }
 ```
 
-Below is the complete field mapping table:
+The complete field mapping (the output contains exactly these keys — nothing more):
 
-| ArtifactRecord Field | ClaimReview Schema Field | Type | Description |
-|---------------------|-------------------------|------|-------------|
-| `artifactId` | `@id` | URI | Unique identifier for the review artifact |
-| `artifactType` | `@type` | Literal | Always "ClaimReview" for verified claims |
-| `title` | `headline` | Literal | Title of the claim being reviewed |
+| ArtifactRecord Field | ClaimReview Field | Type | Description |
+|---------------------|-------------------|------|-------------|
+| *(constant)* | `@context` | URI | Always `"https://schema.org/"` |
+| *(constant)* | `@type` | Literal | Always `"ClaimReview"` |
+| `title` | `name` | Literal | Title of the claim being reviewed |
 | `content` | `reviewBody` | Literal | Full text of the claim/review content |
-| `status` | `reviewAspect` | Literal | The aspect being reviewed (e.g., "security", "code-quality") |
-| `author.id` | `author.@id` | URI | Author identifier (urn:author:{id}) |
-| `author.name` | `author.name` | Literal | Human-readable author name |
-| `agent.framework` | `publisher.name` | Literal | Agent framework (e.g., "Claude Code", "LangChain") |
-| `agent.version` | `publisher.version` | Literal | Agent framework version |
-| `provenance.createdAt` | `datePublished` | DateTime | ISO 8601 timestamp of creation |
-| `provenance.modifiedAt` | `dateModified` | DateTime | ISO 8601 timestamp of last modification |
-| `provenance.sessionId` | `reviewedBy.sessionId` | Literal | Original session identifier |
-| `provenance.subAgentId` | `reviewedBy.subAgentId` | Literal | Sub-agent identifier if applicable |
-| `provenance.toolCalls` | `reviewedBy.toolCalls` | Array | List of tool calls used in analysis |
-| `provenance.filePaths` | `reviewedBy.citedSources` | Array | File paths referenced in the claim |
-| `dkg.ual` | `claimReference` | URI | Universal Asset Locator for DKG verification |
-| `contentHash` | `claimEvidence` | Literal | SHA-256 hash of the content for integrity |
-| `dkg.assertionName` | `claimDataset` | Literal | DKG assertion name containing the claim |
-| `dkg.contextGraph` | `claimContext` | Literal | Context graph identifier |
+| `status` | `reviewRating.ratingValue` | Integer (1–5) | Trust-gradient status mapped to a confidence rating (see table below) |
+| `artifactId` | `url` | URI | Artifact URN (`urn:dkg:wm:<16-hex-sha256-prefix>`) |
+| `provenance.capturedAt` | `datePublished` | DateTime | ISO 8601 capture timestamp |
+
+**Status → `ratingValue` mapping** (`statusToRatingValue` in `src/core/serializers.ts`):
+
+| Status | ratingValue |
+|---|---|
+| `ready_to_share` | 5 |
+| `validated` | 4 |
+| `review_needed` | 3 |
+| `needs_sources` | 2 |
+| `draft` / `deprecated` / `discarded` | 1 |
 
 ### JSON-LD Output Example
 
 ```json
 {
-  "@context": [
-    "https://schema.org",
-    "https://ontology.origintrail.io/dkg/wm#"
-  ],
-  "@id": "urn:artifact:abc123",
+  "@context": "https://schema.org/",
   "@type": "ClaimReview",
-  "headline": "High Severity: distribute() Permanent DoS",
+  "name": "High Severity: distribute() Permanent DoS",
   "reviewBody": "The distribute() function can be permanently DoSed via challengeExit()...",
-  "reviewAspect": "security-vulnerability",
-  "author": {
-    "@id": "urn:author:agent-b",
-    "name": "Security Research Agent"
-  },
-  "publisher": {
-    "name": "Claude Code",
-    "version": "0.3.5"
-  },
-  "datePublished": "2026-01-15T10:30:00Z",
-  "dateModified": "2026-01-15T14:45:00Z",
-  "reviewedBy": {
-    "sessionId": "sess-7f3a2b1c",
-    "subAgentId": "agent-b-derive",
-    "toolCalls": ["slither", "forge-test"],
-    "citedSources": ["/home/selon/immunefi/immunefi_27_firedancer/src/RocketMegapoolDelegate.sol"]
-  },
-  "claimReference": "urn:ual:origintrail:abc123def456",
-  "claimEvidence": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "claimDataset": "megapool-security-audit-v1",
-  "claimContext": "fire-dancer-v1.4-saturn"
+  "reviewRating": { "ratingValue": 4 },
+  "url": "urn:dkg:wm:7f3a2b1c9d0e4f56",
+  "datePublished": "2026-05-25T10:30:00.000Z"
 }
 ```
+
+> The current serializer keeps the ClaimReview deliberately minimal — the five mapped fields plus the two constants. Richer provenance (author, agent framework, tool calls, content hash, UAL) is already stored on the artifact's RDF quads and can be joined in by an Oracle consumer; extending `toClaimReview()` to embed them inline is tracked under *Future Enhancements* below.
 
 ---
 
 ## 3. How to Submit a ClaimReview to OriginTrail
 
+> **Scope note:** This server generates Oracle-ready ClaimReview JSON-LD via `get_claim_review`, but does **not** itself submit to the Oracle. The signing/submission flow below is illustrative — it shows how a downstream consumer would push the JSON-LD on-chain. A dedicated `submit_to_oracle` tool is tracked under *Future Enhancements* (Section 5). Endpoint URLs and transaction shapes shown here are representative, not a stable API contract.
+
 ### Prerequisites
 
 1. **DKG Node Access:** You must have access to an OriginTrail DKG v10 node with the Oracle service enabled.
 2. **Artifact in Working Memory:** The artifact must already be stored with a valid content hash and UAL.
-3. **Status Transition:** The artifact should have status `ready_to_share` or `shared` before Oracle submission.
+3. **Status Transition:** The artifact should have reached status `ready_to_share` (the top of the trust gradient) before Oracle submission.
 
 ### Submission Steps
 
 **Step 1: Generate ClaimReview from Artifact**
 
-Call the `toClaimReview()` serializer or manually construct the JSON-LD:
+Call the `get_claim_review` MCP tool — it fetches the artifact by ID and runs `toClaimReview()` for you, returning the JSON-LD in `result.claimReview`:
 
-```typescript
-import { toClaimReview } from './src/core/serializers.js';
-import { getArtifact } from './src/core/storage.js';
-
-const artifact = await getArtifact('urn:artifact:abc123');
-const claimReview = toClaimReview(artifact);
+```json
+{
+  "tool": "get_claim_review",
+  "arguments": { "artifactId": "urn:dkg:wm:abc1230def456789" }
+}
 ```
+
+(Internally this fetches the artifact via `DkgClient.querySparql()` and serializes it with `toClaimReview()` from `src/core/serializers.ts`.)
 
 **Step 2: Sign the ClaimReview**
 
@@ -217,31 +198,34 @@ Response includes artifact ID and content hash:
 
 ```json
 {
-  "artifactId": "urn:artifact:7f3a2b1c",
-  "contentHash": "sha256:abc123...",
-  "ual": "urn:ual:origintrail:pending"
+  "success": true,
+  "artifactId": "urn:dkg:wm:7f3a2b1c9d0e4f56",
+  "contentHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "status": "draft"
 }
 ```
 
 **Step 3: Agent B Reviews and Promotes**
 
-Agent B retrieves the artifact, verifies the finding, and updates status:
+Agent B retrieves the artifact, verifies the finding, and advances its status (the status param is named `newStatus`):
 
 ```json
 {
   "tool": "update_artifact_status",
   "arguments": {
-    "artifactId": "urn:dkg:wm:7f3a2b1c",
-    "status": "ready_to_share"
+    "artifactId": "urn:dkg:wm:7f3a2b1c9d0e4f56",
+    "newStatus": "ready_to_share"
   }
 }
 ```
 
 **Step 4: Generate ClaimReview**
 
-```typescript
-const artifact = await getArtifact('urn:artifact:7f3a2b1c');
-const claimReview = toClaimReview(artifact);
+```json
+{
+  "tool": "get_claim_review",
+  "arguments": { "artifactId": "urn:dkg:wm:7f3a2b1c9d0e4f56" }
+}
 ```
 
 **Step 5: Submit to Oracle**
@@ -263,10 +247,10 @@ Response:
 ```json
 {
   "verified": true,
-  "contentHash": "sha256:abc123...",
+  "contentHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "author": "urn:author:agent-a",
-  "datePublished": "2026-01-15T10:30:00Z",
-  "status": "shared"
+  "datePublished": "2026-05-25T10:30:00.000Z",
+  "status": "ready_to_share"
 }
 ```
 
