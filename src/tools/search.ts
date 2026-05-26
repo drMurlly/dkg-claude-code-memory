@@ -13,7 +13,7 @@ export async function handleSearch(
   params: SearchParams,
   deps: ToolDeps,
 ): Promise<ToolResult> {
-  const { status, type, keyword, sessionId, limit = 20 } = params;
+  const { status, type, keyword, sessionId, limit = 20, derivedFromId } = params;
 
   // Validate status if provided
   if (status && !ARTIFACT_STATUSES.includes(status)) {
@@ -47,9 +47,27 @@ export async function handleSearch(
   }
 
   if (keyword) {
-    // Simple keyword search on name and text
+    // Keyword search on name (title) OR text (content)
     const escapedKeyword = sparqlEscape(keyword);
-    filters.push(`CONTAINS(LCASE(?name), LCASE("${escapedKeyword}"))`);
+    filters.push(`(CONTAINS(LCASE(?name), LCASE("${escapedKeyword}")) || CONTAINS(LCASE(?text), LCASE("${escapedKeyword}")))`);
+  }
+
+  // Build base WHERE clause
+  let whereClause = `
+    ?id a wm:WorkingMemoryArtifact ;
+        wm:artifactType ?type ;
+        wm:status ?status ;
+        wm:contentHash ?contentHash ;
+        wm:provenance ?prov .
+    ?prov wm:capturedAt ?capturedAt ;
+          wm:sessionId ?sessionId .
+    OPTIONAL { ?id schema:name ?name }
+    OPTIONAL { ?id schema:text ?text }
+  `.trim();
+
+  // Add derivedFrom filter if provided - use ?id (not ?artifact) to match existing variable
+  if (derivedFromId) {
+    whereClause += `\n      ?id prov:wasDerivedFrom <${sparqlEscape(derivedFromId)}> .`;
   }
 
   const filterClause = filters.length > 0
@@ -60,18 +78,11 @@ export async function handleSearch(
     PREFIX wm: <https://ontology.origintrail.io/dkg/wm#>
     PREFIX schema: <https://schema.org/>
     PREFIX dkg: <https://ontology.origintrail.io/dkg/1.0#>
+    PREFIX prov: <http://www.w3.org/ns/prov#>
 
-    SELECT ?id ?name ?type ?status ?contentHash ?capturedAt ?sessionId
+    SELECT ?id ?name ?text ?type ?status ?contentHash ?capturedAt ?sessionId
     WHERE {
-      ?id a wm:WorkingMemoryArtifact ;
-          wm:artifactType ?type ;
-          wm:status ?status ;
-          wm:contentHash ?contentHash ;
-          wm:provenance ?prov .
-      ?prov wm:capturedAt ?capturedAt ;
-            wm:sessionId ?sessionId .
-      OPTIONAL { ?id schema:name ?name }
-
+      ${whereClause}
       ${filterClause}
     }
     ORDER BY DESC(?capturedAt)
@@ -91,6 +102,7 @@ export async function handleSearch(
       return {
         id: binding.id?.value,
         name: binding.name?.value,
+        text: binding.text?.value,
         type: binding.type?.value,
         status: binding.status?.value,
         contentHash: binding.contentHash?.value,

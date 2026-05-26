@@ -12,7 +12,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       reportsDirectory: './coverage',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/server.ts', 'src/config.ts'],
+      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/server.ts', 'src/config.ts', 'src/types/mcp.ts'],
       thresholds: {
         lines: 95,
         functions: 95,

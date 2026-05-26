@@ -42,6 +42,8 @@ export interface CaptureParams {
   parentTaskId?: string;
   agentRole?: string;
   source?: 'chat' | 'tool' | 'file' | 'manual' | 'api';
+  /** Optional array of artifact URNs this artifact was derived from */
+  derivedFrom?: string[];
 }
 
 /**
@@ -53,6 +55,8 @@ export interface SearchParams {
   keyword?: string;
   sessionId?: string;
   limit?: number;
+  /** Optional artifact URN to filter results to artifacts derived from this source */
+  derivedFromId?: string;
 }
 
 /**
@@ -83,6 +87,7 @@ export interface PromoteParams {
  */
 export interface SynthesizeParams {
   sessionId: string;
+  title?: string;
 }
 
 /**

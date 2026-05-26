@@ -1,5 +1,5 @@
 /**
- * MCP Server — Glue layer that registers all 7 tools with the MCP SDK
+ * MCP Server — Glue layer that registers all 8 tools with the MCP SDK
  * and connects via stdio transport.
  *
  * Exports `startServer()` for the CLI entry point (src/index.ts).
@@ -25,6 +25,7 @@ import { handleUpdateStatus } from './tools/update-status.js';
 import { handlePromote } from './tools/promote.js';
 import { handleSynthesize } from './tools/synthesize.js';
 import { handleSessionSummary } from './tools/session-summary.js';
+import { handleQuerySharedMemory } from './tools/query-shared-memory.js';
 import { ARTIFACT_TYPES, ARTIFACT_STATUSES } from './types/artifact.js';
 import type {
   CaptureParams,
@@ -36,12 +37,13 @@ import type {
   SessionSummaryParams,
   ToolDeps,
 } from './tools/types.js';
+import type { QuerySharedMemoryParams } from './tools/query-shared-memory.js';
 
 // ── Session ID ────────────────────────────────────────────────────────────────
 // Unique per server process lifetime (one Claude Code session = one server process)
 const SESSION_ID = `ccm-${randomUUID().slice(0, 8)}`;
 
-// ── Tool Definitions ──────────────────────────────────────────────────────────
+// ── Tool Definitions ───────────────────────────────────────────────────────────
 
 const TOOL_DEFINITIONS = [
   {
@@ -142,22 +144,31 @@ const TOOL_DEFINITIONS = [
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string', description: 'Session ID (defaults to current session)' },
+        sessionId: { type: 'string', description: 'Session ID to summarize (defaults to current session)' },
       },
+    },
+  },
+  {
+    name: 'query_shared_memory',
+    description:
+      'Execute custom SPARQL queries against Shared Memory (schema:DigitalDocument artifacts). ' +
+      'Use for complex provenance analysis, tracing knowledge chains, or advanced graph queries. ' +
+      'Returns matching UALs with title, snippet, and capturedAt timestamp.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'SPARQL FILTER clause or pattern to match (required)' },
+        limit: { type: 'number', description: 'Maximum results to return (default 10, max 100)' },
+      },
+      required: ['query'],
     },
   },
 ];
 
-// ── System Prompt Builder ─────────────────────────────────────────────────────
+// ── System Prompt Builder ──────────────────────────────────────────────────────
 
 function buildSystemPrompt(sessionId: string): string {
-  return `# DKG Research Memory
-
-You have access to persistent Working Memory on DKG v10 through the following tools.
-Use them proactively — don't wait for the user to ask.
-
-**Current session ID:** ${sessionId}
-All artifacts you produce are automatically associated with this session and persist across Claude Code sessions.
+  return `You are integrated with DKG Research Memory. Your research artifacts persist across sessions through the DKG v10 graph.
 
 ## When to use each tool
 
@@ -175,27 +186,33 @@ Examples:
 - "Before I audit this contract, search my memory for similar vulnerability patterns"
 - "Search for any prior analysis of this protocol"
 
+**query_shared_memory** — For complex SPARQL queries across shared DigitalDocument artifacts.
+Use when you need to:
+- Trace provenance chains across multiple documents
+- Query with custom SPARQL patterns
+- Find related knowledge in the shared graph
+
 **update_artifact_status** — Promote findings as your confidence grows.
 Progression: draft → needs_sources → review_needed → validated → ready_to_share
 
 **promote_to_shared_memory** — ONLY when the user explicitly asks to share findings with their team.
 You MUST ask for confirmation before calling this. Never call it autonomously.
 
-**synthesize_session** — At the end of a complex research session, synthesize all findings into a structured summary.
+**synthesize_session** — At the end of a complex research sessions, synthesize all findings into a structured summary.
 
 **get_session_summary** — To see what has been captured in the current or a past session.
 
 ## Sub-agent attribution
 
 If you are a sub-agent spawned by a parent Claude Code session, use:
-- parentTaskId: the parent session's ID
+- parentTaskId: the parent sessions's ID
 - subAgentId: a unique identifier for yourself
 - agentRole: your role (e.g., "reentrancy-analyzer", "access-control-reviewer")
 
 This creates a verifiable provenance chain across the full agent hierarchy.`;
 }
 
-// ── Tool Handler Router ───────────────────────────────────────────────────────
+// ── Tool Handler Router ────────────────────────────────────────────────────────
 
 async function routeToolCall(
   name: string,
@@ -217,12 +234,14 @@ async function routeToolCall(
       return await handleSynthesize(params as unknown as SynthesizeParams, deps);
     case 'get_session_summary':
       return await handleSessionSummary(params as unknown as SessionSummaryParams, deps);
+    case 'query_shared_memory':
+      return await handleQuerySharedMemory(params as unknown as QuerySharedMemoryParams, deps);
     default:
       return { success: false, message: `Unknown tool: ${name}` };
   }
 }
 
-// ── Main Entry ────────────────────────────────────────────────────────────────
+// ── Main Entry ─────────────────────────────────────────────────────────────────
 
 /**
  * Start the MCP server.
@@ -230,7 +249,7 @@ async function routeToolCall(
  * 1. Loads config (env vars + ~/.dkg/auth.token)
  * 2. Initializes shared dependencies (DkgClient, DedupeStore)
  * 3. Pre-creates the Context Graph on DKG (idempotent, non-blocking)
- * 4. Registers all 7 tools with the MCP SDK
+ * 4. Registers all 8 tools with the MCP SDK
  * 5. Registers a prompts/list handler returning the auto-capture system prompt
  * 6. Connects via stdio transport and waits
  */
@@ -253,13 +272,14 @@ export async function startServer(): Promise<void> {
     // Context graph creation failure is non-fatal; queries will still work
   });
 
-  // ── MCP Server ──────────────────────────────────────────────────────────────
+  // ── MCP Server ───────────────────────────────────────────────────────────────
+
   const server = new Server(
     { name: 'dkg-claude-code-memory', version: '1.0.0' },
     { capabilities: { tools: {}, prompts: {} } },
   );
 
-  // ── Tools Handler ───────────────────────────────────────────────────────────
+  // ── Tools Handler ────────────────────────────────────────────────────────────
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: TOOL_DEFINITIONS,

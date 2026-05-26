@@ -72,6 +72,7 @@ describe('handleSearch', () => {
             {
               id: { value: 'urn:dkg:wm:test1' },
               name: { value: 'Test Artifact' },
+              text: { value: 'This is the content of the artifact' },
               type: { value: 'research_note' },
               status: { value: 'draft' },
               contentHash: { value: 'hash123' },
@@ -89,6 +90,7 @@ describe('handleSearch', () => {
       const artifact = result.artifacts![0];
       expect(artifact.id).toBe('urn:dkg:wm:test1');
       expect(artifact.name).toBe('Test Artifact');
+      expect(artifact.text).toBe('This is the content of the artifact');
       expect(artifact.type).toBe('research_note');
       expect(artifact.status).toBe('draft');
       expect(artifact.contentHash).toBe('hash123');
@@ -100,8 +102,8 @@ describe('handleSearch', () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: {
           bindings: [
-            { id: { value: 'urn:dkg:wm:test1' }, name: { value: 'A1' }, type: { value: 'research_note' }, status: { value: 'draft' }, contentHash: { value: 'h1' }, capturedAt: { value: '2024-01-15T10:00:00Z' }, sessionId: { value: 'sess1' } },
-            { id: { value: 'urn:dkg:wm:test2' }, name: { value: 'A2' }, type: { value: 'audit_note' }, status: { value: 'validated' }, contentHash: { value: 'h2' }, capturedAt: { value: '2024-01-15T11:00:00Z' }, sessionId: { value: 'sess1' } },
+            { id: { value: 'urn:dkg:wm:test1' }, name: { value: 'A1' }, text: { value: 'content1' }, type: { value: 'research_note' }, status: { value: 'draft' }, contentHash: { value: 'h1' }, capturedAt: { value: '2024-01-15T10:00:00Z' }, sessionId: { value: 'sess1' } },
+            { id: { value: 'urn:dkg:wm:test2' }, name: { value: 'A2' }, text: { value: 'content2' }, type: { value: 'audit_note' }, status: { value: 'validated' }, contentHash: { value: 'h2' }, capturedAt: { value: '2024-01-15T11:00:00Z' }, sessionId: { value: 'sess1' } },
           ],
         },
       });
@@ -136,7 +138,7 @@ describe('handleSearch', () => {
       expect(sparqlArg).toContain('vulnerability_finding');
     });
 
-    it('calls querySparql with keyword filter using CONTAINS', async () => {
+    it('calls querySparql with keyword filter using CONTAINS on name', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: { bindings: [] },
       });
@@ -145,6 +147,19 @@ describe('handleSearch', () => {
       expect(mockClient.querySparql).toHaveBeenCalled();
       const sparqlArg = (mockClient.querySparql as any).mock.calls[0][0];
       expect(sparqlArg).toContain('myKeyword');
+      expect(sparqlArg).toContain('CONTAINS(LCASE(?name)');
+    });
+
+    it('calls querySparql with keyword filter using CONTAINS on text', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: { bindings: [] },
+      });
+
+      await handleSearch({ keyword: 'myKeyword' }, deps);
+      expect(mockClient.querySparql).toHaveBeenCalled();
+      const sparqlArg = (mockClient.querySparql as any).mock.calls[0][0];
+      expect(sparqlArg).toContain('myKeyword');
+      expect(sparqlArg).toContain('CONTAINS(LCASE(?text)');
     });
 
     it('calls querySparql with sessionId filter', async () => {
@@ -152,32 +167,180 @@ describe('handleSearch', () => {
         results: { bindings: [] },
       });
 
-      await handleSearch({ sessionId: 'my-session' }, deps);
+      await handleSearch({ sessionId: 'test-session' }, deps);
       expect(mockClient.querySparql).toHaveBeenCalled();
       const sparqlArg = (mockClient.querySparql as any).mock.calls[0][0];
-      expect(sparqlArg).toContain('my-session');
+      expect(sparqlArg).toContain('test-session');
     });
+  });
 
-    it('applies limit parameter', async () => {
+  describe('derivedFromId filter', () => {
+    it('includes prov:wasDerivedFrom in SPARQL when derivedFromId is provided', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: { bindings: [] },
       });
 
-      await handleSearch({ limit: 5 }, deps);
-      expect(mockClient.querySparql).toHaveBeenCalled();
+      const derivedFromId = 'urn:dkg:wm:parent-123';
+      await handleSearch({ derivedFromId }, deps);
+      
       const sparqlArg = (mockClient.querySparql as any).mock.calls[0][0];
-      expect(sparqlArg).toContain('5');
+      
+      expect(sparqlArg).toContain('prov:wasDerivedFrom');
+      expect(sparqlArg).toContain('urn:dkg:wm:parent-123');
+      // Verify correct variable ?id is used (not ?artifact)
+      expect(sparqlArg).toMatch(/\?id\s+prov:wasDerivedFrom/);
     });
 
-    it('uses default limit of 20 when not specified', async () => {
+    it('does not include prov:wasDerivedFrom when derivedFromId is not provided', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: { bindings: [] },
       });
 
-      await handleSearch({}, deps);
-      expect(mockClient.querySparql).toHaveBeenCalled();
+      await handleSearch({ keyword: 'test' }, deps);
+      
       const sparqlArg = (mockClient.querySparql as any).mock.calls[0][0];
-      expect(sparqlArg).toContain('20');
+      
+      expect(sparqlArg).not.toContain('prov:wasDerivedFrom');
+    });
+
+    it('combines derivedFromId filter with other filters', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: { bindings: [] },
+      });
+
+      const derivedFromId = 'urn:dkg:wm:parent-123';
+      await handleSearch({ 
+        derivedFromId, 
+        status: 'validated',
+        type: 'vulnerability_finding'
+      }, deps);
+      
+      const sparqlArg = (mockClient.querySparql as any).mock.calls[0][0];
+      
+      expect(sparqlArg).toContain('prov:wasDerivedFrom');
+      expect(sparqlArg).toContain('validated');
+      expect(sparqlArg).toContain('vulnerability_finding');
+    });
+  });
+
+  describe('keyword search on name and text', () => {
+    it('matches keyword on name (title) only', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            {
+              id: { value: 'urn:dkg:wm:test1' },
+              name: { value: 'Security Audit Report' },
+              text: { value: 'This artifact does not contain the keyword' },
+              type: { value: 'audit_report' },
+              status: { value: 'validated' },
+              contentHash: { value: 'hash1' },
+              capturedAt: { value: '2024-01-15T10:00:00Z' },
+              sessionId: { value: 'sess1' },
+            },
+          ],
+        },
+      });
+
+      const result = await handleSearch({ keyword: 'Security' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
+      expect(result.artifacts![0].name).toBe('Security Audit Report');
+    });
+
+    it('matches keyword on text (content) only', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            {
+              id: { value: 'urn:dkg:wm:test2' },
+              name: { value: 'General Report' },
+              text: { value: 'This artifact contains vulnerability keyword in content' },
+              type: { value: 'research_note' },
+              status: { value: 'draft' },
+              contentHash: { value: 'hash2' },
+              capturedAt: { value: '2024-01-15T11:00:00Z' },
+              sessionId: { value: 'sess1' },
+            },
+          ],
+        },
+      });
+
+      const result = await handleSearch({ keyword: 'vulnerability' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
+      expect(result.artifacts![0].text).toContain('vulnerability');
+    });
+
+    it('matches keyword on both name and text', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            {
+              id: { value: 'urn:dkg:wm:test3' },
+              name: { value: 'Critical Vulnerability Analysis' },
+              text: { value: 'This document discusses critical vulnerability findings' },
+              type: { value: 'vulnerability_finding' },
+              status: { value: 'validated' },
+              contentHash: { value: 'hash3' },
+              capturedAt: { value: '2024-01-15T12:00:00Z' },
+              sessionId: { value: 'sess1' },
+            },
+          ],
+        },
+      });
+
+      const result = await handleSearch({ keyword: 'vulnerability' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
+      expect(result.artifacts![0].name).toContain('Vulnerability');
+      expect(result.artifacts![0].text).toContain('vulnerability');
+    });
+
+    it('performs case-insensitive keyword matching on name', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            {
+              id: { value: 'urn:dkg:wm:test5' },
+              name: { value: 'SECURITY Audit Report' },
+              text: { value: 'No match here' },
+              type: { value: 'audit_report' },
+              status: { value: 'validated' },
+              contentHash: { value: 'hash5' },
+              capturedAt: { value: '2024-01-15T14:00:00Z' },
+              sessionId: { value: 'sess1' },
+            },
+          ],
+        },
+      });
+
+      const result = await handleSearch({ keyword: 'security' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
+    });
+
+    it('performs case-insensitive keyword matching on text', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: {
+          bindings: [
+            {
+              id: { value: 'urn:dkg:wm:test6' },
+              name: { value: 'General Report' },
+              text: { value: 'This contains VULNERABILITY in uppercase' },
+              type: { value: 'research_note' },
+              status: { value: 'draft' },
+              contentHash: { value: 'hash6' },
+              capturedAt: { value: '2024-01-15T15:00:00Z' },
+              sessionId: { value: 'sess1' },
+            },
+          ],
+        },
+      });
+
+      const result = await handleSearch({ keyword: 'vulnerability' }, deps);
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
     });
   });
 

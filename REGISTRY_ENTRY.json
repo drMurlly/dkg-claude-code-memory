@@ -1,0 +1,51 @@
+{
+  "name": "dkg-claude-code-memory",
+  "description": "MCP server providing Claude Code agents with persistent, verifiable Working Memory on OriginTrail DKG v10. Captures research findings, vulnerability analyses, and code reviews with cryptographic provenance for cross-session retrieval and team sharing.",
+  "version": "1.0.0",
+  "author": "",
+  "license": "Apache-2.0",
+  "install": {
+    "kind": "mcp",
+    "command": "npx",
+    "args": ["-y", "dkg-claude-code-memory@latest"],
+    "env": {
+      "DKG_AUTH_TOKEN": "required",
+      "DKG_DAEMON_URL": "http://127.0.0.1:9200"
+    }
+  },
+  "tools": [
+    {
+      "name": "capture_research_finding",
+      "description": "Write an artifact to DKG Working Memory with SHA-256 content hash, timestamp, and agent provenance"
+    },
+    {
+      "name": "search_working_memory",
+      "description": "SPARQL search by keyword, type, status, or session ID"
+    },
+    {
+      "name": "get_artifact_content",
+      "description": "Retrieve full artifact content by UAL or URN reference"
+    },
+    {
+      "name": "update_artifact_status",
+      "description": "Advance an artifact through the trust gradient (draft → needs_sources → review_needed → validated → ready_to_share)"
+    },
+    {
+      "name": "promote_to_shared_memory",
+      "description": "Share validated artifacts with team peers (requires explicit user confirmation)"
+    },
+    {
+      "name": "synthesize_session",
+      "description": "Aggregate all artifacts from a session into a structured knowledge_synthesis artifact"
+    },
+    {
+      "name": "get_session_summary",
+      "description": "List all artifacts from a session with type counts and status breakdown"
+    },
+    {
+      "name": "query_shared_memory",
+      "description": "Query team-shared artifacts across peer sessions for collaborative research"
+    }
+  ],
+  "tags": ["dkg", "memory", "provenance", "mcp", "working-memory"]
+}

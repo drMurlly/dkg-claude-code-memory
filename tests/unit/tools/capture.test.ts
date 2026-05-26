@@ -48,6 +48,13 @@ describe('handleCapture', () => {
       expect(result.success).toBe(false);
       expect(result.message).toContain('Content too short');
     });
+
+    it('rejects content exceeding 500KB limit', async () => {
+      const content = 'A'.repeat(500_001);
+      const result = await handleCapture({ content }, deps);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Content too long');
+    });
   });
 
   describe('successful capture', () => {
@@ -82,6 +89,20 @@ describe('handleCapture', () => {
       expect(result.contentHash).toBeDefined();
     });
 
+    it('generates content-addressable artifact ID starting with urn:dkg:wm:', async () => {
+      const content = 'A'.repeat(100);
+      const result = await handleCapture({ content }, deps);
+      expect(result.success).toBe(true);
+      expect(result.artifactId).toMatch(/^urn:dkg:wm:/);
+    });
+
+    it('generates deterministic artifact ID for identical content', async () => {
+      const content = 'B'.repeat(100);
+      const result1 = await handleCapture({ content }, deps);
+      const result2 = await handleCapture({ content }, deps);
+      expect(result1.artifactId).toBe(result2.artifactId);
+    });
+
     it('returns message on success', async () => {
       const content = 'A'.repeat(100);
       const result = await handleCapture({ content }, deps);
@@ -98,8 +119,8 @@ describe('handleCapture', () => {
       expect(result.status).toBe('draft');
     });
 
-    it('assigns needs_sources status for long content (>= 200 chars)', async () => {
-      const content = 'A'.repeat(200);
+    it('assigns needs_sources status for long content (> 300 chars)', async () => {
+      const content = 'A'.repeat(301);
       const result = await handleCapture({ content }, deps);
       expect(result.success).toBe(true);
       expect(result.status).toBe('needs_sources');
@@ -163,7 +184,6 @@ describe('handleCapture', () => {
 
       expect(result.success).toBe(true);
       expect(result.dedupeStatus).toBe('deduplicated');
-      // When the stored record has no ual, result.ual is undefined
       expect(result.ual).toBeUndefined();
     });
 
@@ -189,6 +209,61 @@ describe('handleCapture', () => {
       expect(result.success).toBe(true);
       expect(result.dedupeStatus).not.toBe('deduplicated');
       expect(mockClient.createOrWriteAssertion).toHaveBeenCalled();
+    });
+  });
+
+  describe('derivedFrom provenance chains', () => {
+    it('passes derivedFrom to serializer when provided', async () => {
+      const content = 'A'.repeat(100);
+      const derivedFrom = ['urn:dkg:wm:abc123'];
+      const result = await handleCapture({ content, derivedFrom }, deps);
+      
+      expect(result.success).toBe(true);
+      expect(result.derivedFrom).toEqual(derivedFrom);
+    });
+
+    it('accepts multiple derivedFrom URNs', async () => {
+      const content = 'A'.repeat(100);
+      const derivedFrom = [
+        'urn:dkg:wm:abc123',
+        'urn:dkg:wm:def456',
+        'urn:dkg:wm:ghi789',
+      ];
+      const result = await handleCapture({ content, derivedFrom }, deps);
+      
+      expect(result.success).toBe(true);
+      expect(result.derivedFrom).toEqual(derivedFrom);
+    });
+
+    it('handles empty derivedFrom array', async () => {
+      const content = 'A'.repeat(100);
+      const result = await handleCapture({ content, derivedFrom: [] }, deps);
+      
+      expect(result.success).toBe(true);
+      expect(result.derivedFrom).toEqual([]);
+    });
+
+    it('derivedFrom is undefined when not provided', async () => {
+      const content = 'A'.repeat(100);
+      const result = await handleCapture({ content }, deps);
+      
+      expect(result.success).toBe(true);
+      expect(result.derivedFrom).toBeUndefined();
+    });
+
+    it('combines derivedFrom with other optional parameters', async () => {
+      const content = 'A'.repeat(100);
+      const result = await handleCapture({
+        content,
+        artifactType: 'research_note',
+        sessionId: 'session-abc',
+        subAgentId: 'agent-001',
+        title: 'Test Note',
+        derivedFrom: ['urn:dkg:wm:parent-artifact'],
+      }, deps);
+      
+      expect(result.success).toBe(true);
+      expect(result.derivedFrom).toEqual(['urn:dkg:wm:parent-artifact']);
     });
   });
 
@@ -227,7 +302,9 @@ describe('handleCapture', () => {
 
   describe('error handling', () => {
     it('handles DkgUnavailableError', async () => {
-      (mockClient.createOrWriteAssertion as any).mockRejectedValue(new DkgUnavailableError('node down'));
+      (mockClient.createOrWriteAssertion as any).mockRejectedValue(
+        new DkgUnavailableError('Connection refused')
+      );
 
       const content = 'A'.repeat(100);
       const result = await handleCapture({ content }, deps);
@@ -236,8 +313,10 @@ describe('handleCapture', () => {
       expect(result.message).toContain('DKG unavailable');
     });
 
-    it('handles generic error', async () => {
-      (mockClient.createOrWriteAssertion as any).mockRejectedValue(new Error('network error'));
+    it('handles generic errors', async () => {
+      (mockClient.createOrWriteAssertion as any).mockRejectedValue(
+        new Error('Network timeout')
+      );
 
       const content = 'A'.repeat(100);
       const result = await handleCapture({ content }, deps);

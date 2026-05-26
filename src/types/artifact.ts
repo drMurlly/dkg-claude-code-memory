@@ -57,6 +57,18 @@ export const ARTIFACT_STATUSES: ArtifactStatus[] = [
 ];
 
 /**
+ * Sensitivity levels for artifact access control.
+ * Maps to schema.org accessMode for RDF serialization.
+ */
+export type SensitivityLevel = 'public' | 'internal' | 'confidential';
+
+export const SENSITIVITY_LEVELS: SensitivityLevel[] = [
+  'public',
+  'internal',
+  'confidential',
+];
+
+/**
  * Provenance record with sub-agent tracking fields.
  */
 export interface ProvenanceRecord {
@@ -90,12 +102,40 @@ export interface ArtifactRecord {
   content: string;
   contentHash: string;
   status: ArtifactStatus;
+  sensitivity?: SensitivityLevel;
   author: { id: string; displayName?: string };
   agent: { id: string; framework: string; version: string };
   provenance: ProvenanceRecord;
   dkg: DkgReceipt;
 }
 
+/**
+ * Capture parameters for creating artifacts.
+ * Includes optional derivedFrom for tracking artifact provenance chains.
+ */
+export interface CaptureParams {
+  content: string;
+  source: 'chat' | 'tool' | 'file' | 'manual' | 'api';
+  artifactType?: ArtifactType;
+  title?: string;
+  status?: ArtifactStatus;
+  sensitivity?: SensitivityLevel;
+  sessionId?: string;
+  conversationId?: string;
+  toolCalls?: string[];
+  filePaths?: string[];
+  workspaceProject?: string;
+  subAgentId?: string;
+  parentTaskId?: string;
+  agentRole?: string;
+  /** Optional array of artifact IDs this artifact was derived from */
+  derivedFrom?: string[];
+}
+
+/**
+ * Raw input for artifact capture, passed to normalizeArtifact().
+ * Internal pipeline type — does not include sensitivity or derivedFrom.
+ */
 export interface RawCaptureInput {
   content: string;
   source: 'chat' | 'tool' | 'file' | 'manual' | 'api';
