@@ -1,6 +1,6 @@
 # dkg-claude-code-memory
 
-[![CI](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml)
+[![CI](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/drMurlly/dkg-claude-code-memory/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/dkg-claude-code-memory)](https://www.npmjs.com/package/dkg-claude-code-memory)
 [![Demo](https://img.shields.io/badge/demo-asciinema-orange)](https://asciinema.org/a/2Fr7yXvOQvT6h2Ft)
 
