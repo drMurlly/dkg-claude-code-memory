@@ -74,7 +74,9 @@ export async function handleGetClaimReview(
       assertionName: deps.config.assertionName,
     });
 
-    const bindings = (result as { results?: { bindings: unknown[] } })?.results?.bindings ?? [];
+    // Handles DKG v10 flat format { result: { bindings } } and W3C SPARQL JSON { results: { bindings } }
+    const r = result as { result?: { bindings: unknown[] }; results?: { bindings: unknown[] } };
+    const bindings = r?.result?.bindings ?? r?.results?.bindings ?? [];
 
     if (bindings.length === 0) {
       return {
@@ -83,11 +85,22 @@ export async function handleGetClaimReview(
       };
     }
 
+    const rawVal = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object' && 'value' in v && typeof (v as { value: unknown }).value === 'string')
+        return (v as { value: string }).value;
+      return undefined;
+    };
+    const stripLit = (v: unknown): string | undefined => {
+      const s = rawVal(v);
+      return s && s.startsWith('"') && s.endsWith('"') ? s.slice(1, -1) : s;
+    };
+
     const artifact: Record<string, string> = {};
     for (const b of bindings) {
-      const binding = b as Record<string, { value: string }>;
-      const pred = binding.pred?.value;
-      const obj = binding.obj?.value;
+      const binding = b as Record<string, unknown>;
+      const pred = rawVal(binding.pred);
+      const obj = stripLit(binding.obj);
       if (pred && obj) {
         const localPred = extractLocalPred(pred);
         artifact[localPred] = obj;

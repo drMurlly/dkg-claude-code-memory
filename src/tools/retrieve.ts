@@ -40,7 +40,11 @@ export async function handleRetrieve(
       assertionName: deps.config.assertionName,
     });
 
-    const bindings = (result as { results?: { bindings: unknown[] } })?.results?.bindings ?? [];
+    // Handles two response formats from DKG v10:
+    //   W3C SPARQL JSON (unit test mocks): { results: { bindings: [{ pred: {value:"..."}, obj: {value:"..."} }] } }
+    //   DKG v10 flat: { result: { bindings: [{ pred: "...", obj: "..." }] } }
+    const r = result as { result?: { bindings: unknown[] }; results?: { bindings: unknown[] } };
+    const bindings = r?.result?.bindings ?? r?.results?.bindings ?? [];
 
     if (bindings.length === 0) {
       return {
@@ -49,12 +53,19 @@ export async function handleRetrieve(
       };
     }
 
+    const raw = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object' && 'value' in v && typeof (v as { value: unknown }).value === 'string')
+        return (v as { value: string }).value;
+      return undefined;
+    };
+
     // Parse into flat object
     const artifact: Record<string, string> = {};
     for (const b of bindings) {
-      const binding = b as Record<string, { value: string }>;
-      const pred = binding.pred?.value;
-      const obj = binding.obj?.value;
+      const binding = b as Record<string, unknown>;
+      const pred = raw(binding.pred);
+      const obj = raw(binding.obj);
       if (pred && obj) {
         // Extract local predicate name (hash-fragment first, then last path segment)
         const sep = pred.includes('#') ? '#' : pred.includes('/') ? '/' : null;
