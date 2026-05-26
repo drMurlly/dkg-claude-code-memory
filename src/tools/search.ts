@@ -39,7 +39,7 @@ export async function handleSearch(
   }
 
   if (type) {
-    filters.push(`?artifactType = "${sparqlEscape(type)}"`);
+    filters.push(`?type = "${sparqlEscape(type)}"`);
   }
 
   if (sessionId) {
@@ -95,19 +95,36 @@ export async function handleSearch(
       assertionName: deps.config.assertionName,
     });
 
-    // Parse results
-    const bindings = (result as { results?: { bindings: unknown[] } })?.results?.bindings ?? [];
+    // Parse results.
+    // Handles two formats:
+    //   - DKG v10 flat: { result: { bindings: [{ id: "urn:...", status: "\"draft\"" }] } }
+    //   - W3C SPARQL JSON (unit test mocks): { results: { bindings: [{ id: {value:"urn:..."} }] } }
+    // raw() extracts a string from either a plain string or a {value:string} object.
+    // stripLit() additionally strips N-Quads surrounding double-quotes from DKG literal values.
+    const raw = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object' && 'value' in v && typeof (v as { value: unknown }).value === 'string')
+        return (v as { value: string }).value;
+      return undefined;
+    };
+    const stripLit = (v: unknown): string | undefined => {
+      const s = raw(v);
+      return s && s.startsWith('"') && s.endsWith('"') ? s.slice(1, -1) : s;
+    };
+
+    const r = result as { result?: { bindings: unknown[] }; results?: { bindings: unknown[] } };
+    const bindings = r?.result?.bindings ?? r?.results?.bindings ?? [];
     const artifacts = bindings.map((b: unknown) => {
-      const binding = b as Record<string, { value: string }>;
+      const binding = b as Record<string, unknown>;
       return {
-        id: binding.id?.value,
-        name: binding.name?.value,
-        text: binding.text?.value,
-        type: binding.type?.value,
-        status: binding.status?.value,
-        contentHash: binding.contentHash?.value,
-        capturedAt: binding.capturedAt?.value,
-        sessionId: binding.sessionId?.value,
+        id: raw(binding.id),
+        name: stripLit(binding.name),
+        text: stripLit(binding.text),
+        type: stripLit(binding.type),
+        status: stripLit(binding.status),
+        contentHash: stripLit(binding.contentHash),
+        capturedAt: stripLit(binding.capturedAt),
+        sessionId: stripLit(binding.sessionId),
       };
     });
 

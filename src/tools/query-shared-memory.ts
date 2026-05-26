@@ -63,7 +63,8 @@ export async function handleQuerySharedMemory(
       assertionName: deps.config.assertionName,
     });
 
-    const bindings = (result as { results?: { bindings: unknown[] } })?.results?.bindings ?? [];
+    const r = result as { result?: { bindings: unknown[] }; results?: { bindings: unknown[] } };
+    const bindings = r?.result?.bindings ?? r?.results?.bindings ?? [];
 
     if (bindings.length === 0) {
       return {
@@ -74,14 +75,27 @@ export async function handleQuerySharedMemory(
       };
     }
 
+    // Handles DKG v10 flat format and W3C SPARQL JSON (unit test mocks).
+    const raw = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object' && 'value' in v && typeof (v as { value: unknown }).value === 'string')
+        return (v as { value: string }).value;
+      return undefined;
+    };
+    const stripLit = (v: unknown, fallback: string): string => {
+      const s = raw(v);
+      if (!s) return fallback;
+      return s.startsWith('"') && s.endsWith('"') ? s.slice(1, -1) : s;
+    };
+
     const entries = bindings.map((b: unknown) => {
-      const binding = b as Record<string, { value: string }>;
+      const binding = b as Record<string, unknown>;
       return {
-        ual: binding.ual?.value ?? 'unknown',
-        title: binding.title?.value ?? '(untitled)',
-        snippet: binding.snippet?.value ?? '',
-        type: binding.type?.value ?? 'unknown',
-        status: binding.status?.value ?? 'unknown',
+        ual: raw(binding.ual) ?? 'unknown',
+        title: stripLit(binding.title, '(untitled)'),
+        snippet: stripLit(binding.snippet, ''),
+        type: stripLit(binding.type, 'unknown'),
+        status: stripLit(binding.status, 'unknown'),
       };
     });
 

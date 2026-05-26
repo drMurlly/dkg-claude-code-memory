@@ -41,15 +41,28 @@ export async function handleSessionSummary(
       assertionName: deps.config.assertionName,
     });
 
-    const bindings = (result as { results?: { bindings: unknown[] } })?.results?.bindings ?? [];
+    // Handles DKG v10 flat format and W3C SPARQL JSON (unit test mocks).
+    const raw = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object' && 'value' in v && typeof (v as { value: unknown }).value === 'string')
+        return (v as { value: string }).value;
+      return undefined;
+    };
+    const stripLit = (v: unknown): string | undefined => {
+      const s = raw(v);
+      return s && s.startsWith('"') && s.endsWith('"') ? s.slice(1, -1) : s;
+    };
+
+    const r = result as { result?: { bindings: unknown[] }; results?: { bindings: unknown[] } };
+    const bindings = r?.result?.bindings ?? r?.results?.bindings ?? [];
     const artifacts = bindings.map((b: unknown) => {
-      const binding = b as Record<string, { value: string }>;
+      const binding = b as Record<string, unknown>;
       return {
-        id: binding.id?.value,
-        name: binding.name?.value,
-        type: binding.type?.value,
-        status: binding.status?.value,
-        capturedAt: binding.capturedAt?.value,
+        id: raw(binding.id),
+        name: stripLit(binding.name),
+        type: stripLit(binding.type),
+        status: stripLit(binding.status),
+        capturedAt: stripLit(binding.capturedAt),
       };
     });
 

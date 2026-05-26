@@ -285,9 +285,17 @@ export class DkgClient {
         contextGraphId: undefined,
         view: 'working-memory',
       });
-      const bindings = (result as { results?: { bindings: Array<Record<string, { value: string }>> } })?.results?.bindings ?? [];
-      if (bindings.length > 0 && bindings[0].accessMode?.value) {
-        return bindings[0].accessMode.value;
+      // Handles DKG v10 flat format and W3C SPARQL JSON (unit test mocks).
+      const r = result as { result?: { bindings: Array<Record<string, unknown>> }; results?: { bindings: Array<Record<string, unknown>> } };
+      const bindings = r?.result?.bindings ?? r?.results?.bindings ?? [];
+      if (bindings.length > 0) {
+        const raw = bindings[0].accessMode;
+        let val: string | undefined;
+        if (typeof raw === 'string') val = raw;
+        else if (raw && typeof raw === 'object' && 'value' in raw && typeof (raw as { value: unknown }).value === 'string')
+          val = (raw as { value: string }).value;
+        if (val && val.length > 0)
+          return val.startsWith('"') && val.endsWith('"') ? val.slice(1, -1) : val;
       }
       return null;
     } catch {

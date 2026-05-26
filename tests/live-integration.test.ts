@@ -44,7 +44,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     const result = await handleCapture(
       {
         content: 'Live test: reentrancy found in withdraw() at line 42. Impact: HIGH. Recommended fix: checks-effects-interactions pattern.',
-        type: 'vulnerability_finding',
+        artifactType: 'vulnerability_finding',
         sessionId: 'live-test-session',
         title: 'Live Integration Test Finding',
       },
@@ -272,7 +272,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     const result = await handleCapture(
       {
         content: 'Sub-agent analysis: reviewing smart contract for reentrancy vulnerabilities. No issues found in initial pass.',
-        type: 'research_note',
+        artifactType: 'research_note',
         sessionId: 'live-test-session',
         subAgentId: 'live-sub-agent-001',
         parentTaskId: 'live-parent-task-001',
@@ -306,13 +306,17 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     const client = new DkgClient({ daemonUrl: config.daemonUrl, token: config.authToken });
     const dedupeStore = new DedupeStore(config);
 
+    // After promotion (test 7), vulnerability_findings move to shared-working-memory.
+    // Test 8 writes a research_note to working-memory — search for that instead.
     const result = await handleSearch(
-      { sessionId: 'live-test-session', type: 'vulnerability_finding' },
+      { sessionId: 'live-test-session', type: 'research_note' },
       { config, client, dedupeStore }
     );
 
     expect(result.success).toBe(true);
     expect(result.count).toBeGreaterThan(0);
+    const found = result.artifacts.find((a: any) => a.type === 'research_note');
+    expect(found).toBeDefined();
   });
 
   it('captures multiple artifacts in same session', async () => {
@@ -340,7 +344,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     const result1 = await handleCapture(
       {
         content: 'Additional finding: gas optimization opportunity in loop iteration. Estimated 15% gas reduction possible.',
-        type: 'optimization_suggestion',
+        artifactType: 'audit_note',
         sessionId: 'live-test-session',
       },
       { config, client, dedupeStore }
@@ -349,7 +353,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     const result2 = await handleCapture(
       {
         content: 'Another finding: missing input validation on external call allows arbitrary data injection.',
-        type: 'vulnerability_finding',
+        artifactType: 'vulnerability_finding',
         sessionId: 'live-test-session',
       },
       { config, client, dedupeStore }
@@ -392,7 +396,7 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     const captureResult = await handleCapture(
       {
         content: 'Finding to be rejected: false positive due to external dependency version constraint mismatch.',
-        type: 'vulnerability_finding',
+        artifactType: 'vulnerability_finding',
         sessionId: 'live-test-session',
       },
       { config, client, dedupeStore }
@@ -403,19 +407,19 @@ describe.skipIf(!LIVE)('live DKG node integration', () => {
     }
 
     const updateResult = await handleUpdateStatus(
-      { artifactId: captureResult.artifactId, newStatus: 'rejected' },
+      { artifactId: captureResult.artifactId, newStatus: 'discarded' },
       { config, client, dedupeStore }
     );
 
     expect(updateResult.success).toBe(true);
 
     const searchResult = await handleSearch(
-      { sessionId: 'live-test-session', status: 'rejected' },
+      { sessionId: 'live-test-session', status: 'discarded' },
       { config, client, dedupeStore }
     );
 
     const rejected = searchResult.artifacts.find((a: any) => a.id === captureResult.artifactId);
-    expect(rejected?.status).toBe('rejected');
+    expect(rejected?.status).toBe('discarded');
   });
 
   it('session summary includes all artifact types', async () => {
