@@ -4,7 +4,7 @@
 
 import type { ToolDeps, ToolResult, SearchParams } from './types.js';
 import { ARTIFACT_TYPES, ARTIFACT_STATUSES } from '../types/artifact.js';
-import { sparqlEscape } from '../core/serializers.js';
+import { sparqlEscape, resolveLatestStatus } from '../core/serializers.js';
 
 /**
  * Handle search tool invocation.
@@ -128,11 +128,31 @@ export async function handleSearch(
       };
     });
 
+    // An artifact with multiple wm:status quads (append-only updates) yields one row
+    // per status. Collapse by id, preserving order, and resolve the effective status.
+    type Row = { id?: string; name?: string; text?: string; type?: string; status?: string; contentHash?: string; capturedAt?: string; sessionId?: string };
+    const byId = new Map<string, { row: Row; statuses: Array<string | undefined> }>();
+    const order: string[] = [];
+    for (const a of artifacts as Row[]) {
+      const key = a.id ?? `__noid_${order.length}`;
+      const existing = byId.get(key);
+      if (!existing) {
+        byId.set(key, { row: a, statuses: [a.status] });
+        order.push(key);
+      } else {
+        existing.statuses.push(a.status);
+      }
+    }
+    const deduped = order.map((k) => {
+      const { row, statuses } = byId.get(k)!;
+      return { ...row, status: resolveLatestStatus(statuses) ?? row.status };
+    });
+
     return {
       success: true,
-      message: `Found ${artifacts.length} artifacts`,
-      count: artifacts.length,
-      artifacts,
+      message: `Found ${deduped.length} artifacts`,
+      count: deduped.length,
+      artifacts: deduped,
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

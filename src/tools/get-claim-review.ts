@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { DkgUnavailableError } from '../core/dkg-client.js';
-import { toClaimReview } from '../core/serializers.js';
+import { toClaimReview, resolveLatestStatus } from '../core/serializers.js';
 import type { ToolDeps, ToolResult } from './types.js';
 import type { GetClaimReviewParams } from './types.js';
 import type { ArtifactType, ArtifactStatus, SensitivityLevel } from '../types/artifact.js';
@@ -97,15 +97,20 @@ export async function handleGetClaimReview(
     };
 
     const artifact: Record<string, string> = {};
+    const statuses: string[] = [];
     for (const b of bindings) {
       const binding = b as Record<string, unknown>;
       const pred = rawVal(binding.pred);
       const obj = stripLit(binding.obj);
       if (pred && obj) {
         const localPred = extractLocalPred(pred);
+        if (localPred === 'status') statuses.push(obj);
         artifact[localPred] = obj;
       }
     }
+    // Append-only store may hold multiple wm:status quads; use the furthest-advanced.
+    const resolvedStatus = resolveLatestStatus(statuses);
+    if (resolvedStatus) artifact.status = resolvedStatus;
 
     const artifactRecord = {
       artifactId: safeId,

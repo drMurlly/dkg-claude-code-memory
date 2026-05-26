@@ -33,9 +33,15 @@ async function loadAuthToken(): Promise<string> {
     const token = await readFile(fallbackPath, 'utf-8');
     return token.trim();
   } catch {
-    throw new Error(
-      'DKG_AUTH_TOKEN environment variable not set and ~/.dkg/auth.token not found'
+    // Do NOT crash the server on a missing token: starting up lets MCP clients
+    // discover the tool list, and tool calls that reach the DKG node return a
+    // clear error instead of the whole server failing to connect.
+    process.stderr.write(
+      '[dkg-server] Warning: DKG_AUTH_TOKEN not set and ~/.dkg/auth.token not found. ' +
+      'The server will start and list its tools, but any tool call that reaches the ' +
+      'DKG node will fail until you set DKG_AUTH_TOKEN.\n'
     );
+    return '';
   }
 }
 

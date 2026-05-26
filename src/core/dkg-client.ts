@@ -270,7 +270,11 @@ export class DkgClient {
    * Returns the sensitivity value ('public', 'internal', 'confidential') or null if not set.
    * Uses a lightweight SPARQL query — only fetches the single predicate needed.
    */
-  async getArtifactSensitivity(artifactId: string): Promise<string | null> {
+  async getArtifactSensitivity(
+    artifactId: string,
+    contextGraphId?: string,
+    assertionName?: string,
+  ): Promise<string | null> {
     const safeId = artifactId.replace(/[<>]/g, '');
     const sparql = `
       PREFIX schema: <https://schema.org/>
@@ -281,9 +285,12 @@ export class DkgClient {
     `.trim();
 
     try {
+      // Scope the query to the same Context Graph / assertion the artifact was
+      // written to — otherwise an unscoped query returns nothing on a live node
+      // and the confidential promote-guard silently never fires.
       const result = await this.querySparql(sparql, {
-        contextGraphId: undefined,
-        view: 'working-memory',
+        contextGraphId,
+        assertionName,
       });
       // Handles DKG v10 flat format and W3C SPARQL JSON (unit test mocks).
       const r = result as { result?: { bindings: Array<Record<string, unknown>> }; results?: { bindings: Array<Record<string, unknown>> } };

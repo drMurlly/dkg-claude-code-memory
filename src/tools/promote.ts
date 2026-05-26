@@ -35,7 +35,11 @@ export async function handlePromote(
   try {
     // CONFIDENTIAL GUARD: check sensitivity via SPARQL lookup.
     // Uses getArtifactSensitivity() on the base DkgClient — no injected method needed.
-    const sensitivity = await deps.client.getArtifactSensitivity(artifactId);
+    const sensitivity = await deps.client.getArtifactSensitivity(
+      artifactId,
+      deps.config.contextGraph,
+      deps.config.assertionName,
+    );
     if (sensitivity === 'confidential') {
       return {
         success: false,

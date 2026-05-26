@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-25  
 **Author:** Selon (drMurlly)  
-**Version:** 1.0.0  
+**Version:** 1.0.1  
 **Target:** OriginTrail DKG v10 Round 1 Integrations — Flagship Tier  
 **Repository:** https://github.com/drMurlly/dkg-claude-code-memory  
 **License:** Apache-2.0
@@ -745,7 +745,7 @@ Then configure MCP to point to `dist/index.js`.
 | **Trust Gradient** | None | **7-status workflow (draft → ready_to_share)** |
 | **Sensitivity Guard** | None | **`sensitivity` field + promotion guard** |
 | **Redaction** | None | **Automatic secret redaction** |
-| **Test Coverage** | 147 tests | **552 tests, 100% stmt, 99.81% branch** |
+| **Test Coverage** | 147 tests | **565 tests, 100% stmt, 99.46% branch** |
 | **Tool Count** | 5 CLI commands | **10 MCP tools** |
 | **Oracle Readiness** | None | **`get_claim_review` tool → ClaimReview JSON-LD** |
 | **Node Health Check** | None | **`get_node_status` tool** |

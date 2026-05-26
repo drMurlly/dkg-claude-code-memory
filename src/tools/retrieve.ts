@@ -3,6 +3,7 @@
  */
 
 import type { ToolDeps, ToolResult, RetrieveParams } from './types.js';
+import { resolveLatestStatus } from '../core/serializers.js';
 
 /**
  * Handle retrieve tool invocation.
@@ -59,20 +60,38 @@ export async function handleRetrieve(
         return (v as { value: string }).value;
       return undefined;
     };
+    // The DKG v10 flat format returns literals in N-Quads form (`"value"`); strip the
+    // surrounding quotes so retrieved fields are clean lexical values (matches the
+    // other readers — search, get_claim_review, etc.).
+    const stripLit = (v: unknown): string | undefined => {
+      const s = raw(v);
+      if (s === undefined) return undefined;
+      if (s.startsWith('"')) {
+        const end = s.lastIndexOf('"');
+        if (end > 0) return s.slice(1, end);
+      }
+      return s;
+    };
 
     // Parse into flat object
     const artifact: Record<string, string> = {};
+    const statuses: string[] = [];
     for (const b of bindings) {
       const binding = b as Record<string, unknown>;
       const pred = raw(binding.pred);
-      const obj = raw(binding.obj);
+      const obj = stripLit(binding.obj);
       if (pred && obj) {
         // Extract local predicate name (hash-fragment first, then last path segment)
         const sep = pred.includes('#') ? '#' : pred.includes('/') ? '/' : null;
         const localPred = sep ? pred.split(sep).at(-1)! : pred;
+        if (localPred === 'status') statuses.push(obj);
         artifact[localPred] = obj;
       }
     }
+    // The append-only store may hold several wm:status quads; surface the
+    // furthest-advanced one as the artifact's effective status.
+    const resolvedStatus = resolveLatestStatus(statuses);
+    if (resolvedStatus) artifact.status = resolvedStatus;
 
     return {
       success: true,

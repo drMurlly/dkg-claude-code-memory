@@ -189,8 +189,9 @@ function logCaptureEvent(
   const { content } = params;
   const contentPreview = content?.slice(0, 50) || '';
   const artifactId = typeof result.artifactId === 'string' ? result.artifactId : 'N/A';
+  // MCP stdio transport reserves stdout for JSON-RPC; all diagnostics must go to stderr.
   // eslint-disable-next-line no-console
-  console.log(`[Capture] ${result.success ? 'SUCCESS' : 'FAILED'} - ${formatArtifactId(artifactId)} - ${durationMs}ms - "${contentPreview}..."`);
+  console.error(`[Capture] ${result.success ? 'SUCCESS' : 'FAILED'} - ${formatArtifactId(artifactId)} - ${durationMs}ms - "${contentPreview}..."`);
 }
 
 /**

@@ -129,11 +129,27 @@ describe('session-summary tool', () => {
       });
 
       const result = await handleSessionSummary({ sessionId: 'session-123' }, deps);
-      
+
       expect(result.success).toBe(true);
       expect(result.count).toBe(1);
       expect(result.artifacts?.[0].id).toBe('urn:dkg:wm:test1');
       expect(result.artifacts?.[0].name).toBe('Test Artifact');
+    });
+
+    it('collapses duplicate status rows for one artifact and keeps a single typeCount', async () => {
+      // Append-only status updates yield one row per wm:status value for the same id.
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            { id: 'urn:dkg:wm:dup', name: 'Dup', type: 'research_note', status: 'draft', capturedAt: '2024-01-15T10:00:00Z' },
+            { id: 'urn:dkg:wm:dup', name: 'Dup', type: 'research_note', status: 'validated', capturedAt: '2024-01-15T10:00:00Z' },
+          ],
+        },
+      });
+      const result = await handleSessionSummary({ sessionId: 'session-123' }, deps);
+      expect(result.count).toBe(1);
+      expect((result.typeCounts as Record<string, number>).research_note).toBe(1);
+      expect(result.artifacts?.[0].status).toBe('validated');
     });
 
     it('parses multiple artifacts', async () => {

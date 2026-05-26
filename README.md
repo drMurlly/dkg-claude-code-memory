@@ -146,7 +146,7 @@ get_claim_review({ artifactId: "urn:dkg:wm:d82c6a1b9f3e4c7d" });
         "kind": "mcp",
         "registry": "origintrail-dkg-v10",
         "package": "dkg-claude-code-memory",
-        "version": "1.0.0"
+        "version": "1.0.1"
       },
       "command": "npx",
       "args": ["-y", "dkg-claude-code-memory@latest"],

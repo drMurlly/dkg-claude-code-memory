@@ -98,6 +98,36 @@ describe('handleSearch', () => {
       expect(artifact.sessionId).toBe('session-abc');
     });
 
+    it('collapses duplicate rows for the same artifact and resolves the effective status', async () => {
+      // Append-only status updates produce one row per wm:status value for the same id.
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            { id: 'urn:dkg:wm:dup', name: 'Dup', type: 'research_note', status: 'validated', contentHash: 'h', capturedAt: '2024-01-15T10:00:00Z', sessionId: 's' },
+            { id: 'urn:dkg:wm:dup', name: 'Dup', type: 'research_note', status: 'draft', contentHash: 'h', capturedAt: '2024-01-15T10:00:00Z', sessionId: 's' },
+          ],
+        },
+      });
+      const result = await handleSearch({ sessionId: 's' }, deps);
+      expect(result.count).toBe(1);
+      expect(result.artifacts).toHaveLength(1);
+      expect(result.artifacts![0].id).toBe('urn:dkg:wm:dup');
+      expect(result.artifacts![0].status).toBe('validated');
+    });
+
+    it('keeps a row that has no id (no-id fallback key)', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            { name: 'No id row', type: 'research_note', status: 'draft' },
+          ],
+        },
+      });
+      const result = await handleSearch({}, deps);
+      expect(result.count).toBe(1);
+      expect(result.artifacts![0].id).toBeUndefined();
+    });
+
     it('handles multiple bindings', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: {

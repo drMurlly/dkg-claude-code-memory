@@ -21,9 +21,43 @@ import {
   serializeArtifact,
   serializeToQuadsWithDerivedFrom,
   toClaimReview,
+  resolveLatestStatus,
   type ClaimReviewJSON,
 } from '../../../src/core/serializers.js';
 import { makeArtifact } from '../helpers.js';
+
+describe('resolveLatestStatus()', () => {
+  it('returns undefined for an empty list', () => {
+    expect(resolveLatestStatus([])).toBeUndefined();
+  });
+
+  it('returns the single status when only one is present', () => {
+    expect(resolveLatestStatus(['validated'])).toBe('validated');
+  });
+
+  it('picks the furthest-advanced status regardless of order', () => {
+    expect(resolveLatestStatus(['draft', 'validated'])).toBe('validated');
+    expect(resolveLatestStatus(['validated', 'draft'])).toBe('validated');
+    expect(resolveLatestStatus(['draft', 'needs_sources', 'review_needed'])).toBe('review_needed');
+  });
+
+  it('treats deprecated/discarded as terminal (highest precedence)', () => {
+    expect(resolveLatestStatus(['validated', 'deprecated'])).toBe('deprecated');
+    expect(resolveLatestStatus(['ready_to_share', 'discarded'])).toBe('discarded');
+  });
+
+  it('ignores null/undefined entries', () => {
+    expect(resolveLatestStatus([undefined, 'validated', null])).toBe('validated');
+  });
+
+  it('still returns an unknown status when nothing recognised is present', () => {
+    expect(resolveLatestStatus(['totally-unknown'])).toBe('totally-unknown');
+  });
+
+  it('prefers a recognised status over an unknown one', () => {
+    expect(resolveLatestStatus(['totally-unknown', 'draft'])).toBe('draft');
+  });
+});
 
 describe('sparqlEscape()', () => {
   it('escapes backslash', () => {

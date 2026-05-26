@@ -259,6 +259,44 @@ function statusToRatingValue(status: string): number {
 }
 
 /**
+ * Trust-gradient precedence. The DKG assertion store is append-only, so
+ * update_artifact_status adds a new wm:status quad without removing the old one —
+ * an artifact can therefore carry several status values. Status only advances
+ * forward (draft → … → ready_to_share), and deprecated/discarded are terminal, so
+ * the effective status is the highest-precedence value present.
+ */
+const STATUS_PRECEDENCE: Record<string, number> = {
+  draft: 0,
+  needs_sources: 1,
+  review_needed: 2,
+  validated: 3,
+  ready_to_share: 4,
+  deprecated: 5,
+  discarded: 6,
+};
+
+/**
+ * Resolve the effective status from all wm:status values found for one artifact.
+ * Returns the furthest-advanced (highest-precedence) status. Unknown values rank
+ * lowest but are still returned when no recognised status is present.
+ */
+export function resolveLatestStatus(
+  statuses: Array<string | undefined | null>,
+): string | undefined {
+  let best: string | undefined;
+  let bestRank = -Infinity;
+  for (const s of statuses) {
+    if (!s) continue;
+    const rank = STATUS_PRECEDENCE[s] ?? -1;
+    if (best === undefined || rank > bestRank) {
+      best = s;
+      bestRank = rank;
+    }
+  }
+  return best;
+}
+
+/**
  * Convert an ArtifactRecord to a schema.org ClaimReview JSON-LD object.
  *
  * Mapping:

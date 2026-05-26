@@ -79,6 +79,45 @@ describe('handleRetrieve', () => {
       expect((result.artifact as any).status).toBe('draft');
     });
 
+    it('strips N-Quads surrounding quotes from flat literal values (DKG v10 format)', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            { pred: 'https://ontology.origintrail.io/dkg/wm#status', obj: '"draft"' },
+            { pred: 'https://schema.org/accessMode', obj: '"confidential"' },
+          ],
+        },
+      });
+      const result = await handleRetrieve({ artifactId: 'urn:dkg:wm:test' }, deps);
+      expect((result.artifact as any).status).toBe('draft');
+      expect((result.artifact as any).accessMode).toBe('confidential');
+    });
+
+    it('resolves the furthest-advanced status when the artifact has multiple wm:status quads', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            { pred: 'https://ontology.origintrail.io/dkg/wm#status', obj: 'draft' },
+            { pred: 'https://ontology.origintrail.io/dkg/wm#status', obj: 'validated' },
+          ],
+        },
+      });
+      const result = await handleRetrieve({ artifactId: 'urn:dkg:wm:test' }, deps);
+      expect((result.artifact as any).status).toBe('validated');
+    });
+
+    it('leaves a malformed unterminated-quote literal unchanged', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        result: {
+          bindings: [
+            { pred: 'https://ontology.origintrail.io/dkg/wm#contentHash', obj: '"unterminated' },
+          ],
+        },
+      });
+      const result = await handleRetrieve({ artifactId: 'urn:dkg:wm:test' }, deps);
+      expect((result.artifact as any).contentHash).toBe('"unterminated');
+    });
+
     it('parses multiple predicates into flat artifact object', async () => {
       mockClient.querySparql = vi.fn().mockResolvedValue({
         results: {

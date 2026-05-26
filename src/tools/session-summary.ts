@@ -3,7 +3,7 @@
  */
 
 import type { ToolDeps, ToolResult, SessionSummaryParams } from './types.js';
-import { sparqlEscape } from '../core/serializers.js';
+import { sparqlEscape, resolveLatestStatus } from '../core/serializers.js';
 
 /**
  * Handle session-summary tool invocation.
@@ -55,7 +55,7 @@ export async function handleSessionSummary(
 
     const r = result as { result?: { bindings: unknown[] }; results?: { bindings: unknown[] } };
     const bindings = r?.result?.bindings ?? r?.results?.bindings ?? [];
-    const artifacts = bindings.map((b: unknown) => {
+    const rows = bindings.map((b: unknown) => {
       const binding = b as Record<string, unknown>;
       return {
         id: raw(binding.id),
@@ -66,7 +66,27 @@ export async function handleSessionSummary(
       };
     });
 
-    // Calculate type counts
+    // Append-only updates can return one row per wm:status value; collapse by id
+    // (preserving order) and resolve the effective status before counting.
+    type Row = { id?: string; name?: string; type?: string; status?: string; capturedAt?: string };
+    const byId = new Map<string, { row: Row; statuses: Array<string | undefined> }>();
+    const order: string[] = [];
+    for (const a of rows as Row[]) {
+      const key = a.id ?? `__noid_${order.length}`;
+      const existing = byId.get(key);
+      if (!existing) {
+        byId.set(key, { row: a, statuses: [a.status] });
+        order.push(key);
+      } else {
+        existing.statuses.push(a.status);
+      }
+    }
+    const artifacts = order.map((k) => {
+      const { row, statuses } = byId.get(k)!;
+      return { ...row, status: resolveLatestStatus(statuses) ?? row.status };
+    });
+
+    // Calculate type counts on the de-duplicated set
     const typeCounts: Record<string, number> = {};
     for (const a of artifacts) {
       const t = a.type || 'unknown';
