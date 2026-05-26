@@ -5,6 +5,32 @@ All notable changes to `dkg-claude-code-memory` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-05-26
+
+Second bug-fix release from another full end-to-end test of the published package
+against a live DKG v10 node.
+
+### Fixed
+
+- **`retrieve_artifact` returned no provenance fields.** `sessionId`, `source`,
+  `capturedAt`, `dateCreated`, `modifiedAt`, `agentFramework`, and the multi-agent
+  attribution (`subAgentId` / `parentTaskId` / `agentRole`) live on the artifact's
+  `<id>/provenance` node, which the query never traversed. `retrieve` now `UNION`s
+  in the provenance node, so the full record (including multi-agent attribution) is
+  returned.
+- **`get_claim_review` used the wrong `datePublished`.** It fell back to the current
+  time because `capturedAt` (on the provenance node) was not fetched; it now uses the
+  artifact's real capture timestamp.
+- **`query_shared_memory` never found promoted artifacts.** It queried the default
+  `working-memory` view; promoted artifacts live in the `shared-working-memory` view.
+  It now queries that view, and each entry includes the artifact `id` so results can
+  be passed straight to `retrieve_artifact`.
+
+### Changed
+
+- Test suite expanded to 566 unit/integration tests (100% statements, 99.46%
+  branches) plus 13 live integration tests.
+
 ## [1.0.1] — 2026-05-26
 
 Bug-fix release from a full end-to-end test of the published package against a
@@ -64,5 +90,6 @@ Working Memory on OriginTrail DKG v10.
 - 552 unit/integration tests (100% statements, 99.81% branches) and 13 live
   integration tests against a local DKG v10 node.
 
+[1.0.2]: https://github.com/drMurlly/dkg-claude-code-memory/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/drMurlly/dkg-claude-code-memory/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/drMurlly/dkg-claude-code-memory/releases/tag/v1.0.0

@@ -10,7 +10,7 @@ import { redact } from './redactor.js';
 import { buildProvenance, SubAgentContext } from './provenance-builder.js';
 import { classifyStatus } from './status-classifier.js';
 
-const PACKAGE_VERSION = '1.0.1';
+const PACKAGE_VERSION = '1.0.2';
 /** Hard ceiling to keep DKG write payloads reasonable — 500 KB. */
 const MAX_CONTENT_LENGTH = 500_000;
 

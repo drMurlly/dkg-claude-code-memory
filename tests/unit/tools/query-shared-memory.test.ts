@@ -70,6 +70,7 @@ describe('handleQuerySharedMemory', () => {
         results: {
           bindings: [
             {
+              id: { value: 'urn:dkg:wm:abc123' },
               ual: { value: 'urn:dkg:ual:test1' },
               title: { value: 'Security Analysis Report' },
               snippet: { value: 'This document contains a security analysis of the protocol' },
@@ -85,6 +86,7 @@ describe('handleQuerySharedMemory', () => {
       expect(result.count).toBe(1);
       expect(result.entries).toHaveLength(1);
       const entry = result.entries![0];
+      expect(entry.id).toBe('urn:dkg:wm:abc123');
       expect(entry.ual).toBe('urn:dkg:ual:test1');
       expect(entry.title).toBe('Security Analysis Report');
       expect(entry.snippet).toBe('This document contains a security analysis of the protocol');
@@ -157,6 +159,17 @@ describe('handleQuerySharedMemory', () => {
 
       const sparqlQuery = (mockClient.querySparql as any).mock.calls[0][0];
       expect(sparqlQuery).toContain('LIMIT 5');
+    });
+
+    it('queries the shared-working-memory view (where promoted artifacts live)', async () => {
+      mockClient.querySparql = vi.fn().mockResolvedValue({
+        results: { bindings: [] },
+      });
+
+      await handleQuerySharedMemory({ query: 'test' }, deps);
+
+      const opts = (mockClient.querySparql as any).mock.calls[0][1];
+      expect(opts.view).toBe('shared-working-memory');
     });
 
     it('clamps limit to minimum of 1', async () => {

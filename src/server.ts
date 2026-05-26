@@ -48,7 +48,7 @@ export async function startServer(): Promise<void> {
   const server = new Server(
     {
       name: 'dkg-claude-code-memory',
-      version: '1.0.1',
+      version: '1.0.2',
     },
     {
       capabilities: {

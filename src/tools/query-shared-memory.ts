@@ -40,7 +40,7 @@ export async function handleQuerySharedMemory(
     PREFIX schema: <https://schema.org/>
     PREFIX dkg: <https://ontology.origintrail.io/dkg/1.0#>
 
-    SELECT ?ual ?title ?snippet ?type ?status
+    SELECT ?id ?ual ?title ?snippet ?type ?status
     WHERE {
       ?id a wm:WorkingMemoryArtifact ;
           wm:artifactType ?type ;
@@ -58,9 +58,12 @@ export async function handleQuerySharedMemory(
   `.trim();
 
   try {
+    // Query the Shared (Working) Memory view — that is where promoted artifacts
+    // live. The default 'working-memory' view would never surface them.
     const result = await deps.client.querySparql(sparql, {
       contextGraphId: deps.config.contextGraph,
       assertionName: deps.config.assertionName,
+      view: 'shared-working-memory',
     });
 
     const r = result as { result?: { bindings: unknown[] }; results?: { bindings: unknown[] } };
@@ -91,6 +94,9 @@ export async function handleQuerySharedMemory(
     const entries = bindings.map((b: unknown) => {
       const binding = b as Record<string, unknown>;
       return {
+        // Artifact URN — the stable, always-present identifier; pass it to
+        // retrieve_artifact. (ual is only populated if the node stored one.)
+        id: raw(binding.id) ?? 'unknown',
         ual: raw(binding.ual) ?? 'unknown',
         title: stripLit(binding.title, '(untitled)'),
         snippet: stripLit(binding.snippet, ''),

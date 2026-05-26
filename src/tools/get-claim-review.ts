@@ -57,14 +57,20 @@ export async function handleGetClaimReview(
 
   const safeId = artifactId.replace(/[<>]/g, '');
 
+  // Include the provenance-node quads (capturedAt drives datePublished; source,
+  // session, sub-agent fields enrich the record). rdf:type on the provenance node
+  // is filtered out so it does not collide with the artifact's type.
   const sparql = `
     PREFIX wm: <https://ontology.origintrail.io/dkg/wm#>
     PREFIX schema: <https://schema.org/>
     PREFIX dkg: <https://ontology.origintrail.io/dkg/1.0#>
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
     SELECT ?pred ?obj
     WHERE {
-      <${safeId}> ?pred ?obj
+      { <${safeId}> ?pred ?obj }
+      UNION
+      { <${safeId}> wm:provenance ?prov . ?prov ?pred ?obj . FILTER(?pred != rdf:type) }
     }
   `.trim();
 

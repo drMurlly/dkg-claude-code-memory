@@ -1,7 +1,7 @@
 {
   "name": "dkg-claude-code-memory",
   "description": "MCP server providing Claude Code agents with persistent, verifiable Working Memory on OriginTrail DKG v10. Captures research findings, vulnerability analyses, and code reviews with SHA-256 content-addressable IDs, PROV-O provenance chains, and multi-agent attribution \u2014 enabling cross-session retrieval, deduplication, and team knowledge sharing.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "commit": "013abb5f6a2535a9f2115b9552c0629961f26749",
   "npmPackage": "dkg-claude-code-memory",
   "demo": "https://github.com/drMurlly/dkg-claude-code-memory/releases/download/v1.0.0/dkg-claude-code-memory-demo.mp4",
@@ -98,7 +98,7 @@
       "description": "Check DKG node reachability and measure connection latency \u2014 useful for diagnosing connection issues before running tool operations"
     }
   ],
-  "testCount": 565,
+  "testCount": 566,
   "coverage": "100% statements, 99.46% branches",
   "tags": [
     "dkg",

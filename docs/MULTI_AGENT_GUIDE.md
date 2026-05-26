@@ -162,7 +162,7 @@ Searches the agent's local working memory scope. Best for finding recent work by
 
 ### `query_shared_memory`
 
-Queries the broader Shared Memory pool — findings from other agent clusters that have been promoted. Accepts a keyword/text search string; the server performs a CONTAINS filter over Shared Memory entries (schema:DigitalDocument/CreativeWork/Article) and returns `{ual, title, snippet, type}` results. It is NOT a raw SPARQL query.
+Queries the broader Shared Memory pool — findings that have been promoted. Accepts a keyword/text search string; the server performs a CONTAINS keyword filter (over title and text) against promoted Working Memory artifacts in the Shared (Working) Memory view and returns `{id, ual, title, snippet, type, status}` results — pass `id` to `retrieve_artifact` to fetch the full artifact. It is NOT a raw SPARQL query.
 
 ```json
 // Search for similar reentrancy patterns in Shared Memory
